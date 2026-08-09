@@ -301,10 +301,12 @@ function parseCost(body: string): { diy?: string; pro?: string; save?: string; r
   let pro: string | undefined;
   let save: string | undefined;
   const rest: string[] = [];
-  // Görünmez karakterler (zero-width space vb.) silinir: yalnızca görünmez
-  // karakterlerden oluşan satırlar filtrelenir; aksi halde RichText bunları
-  // tam satır yüksekliğinde boş satırlar olarak çizip boşluklar oluşturur.
-  const clean = (l: string) => l.replace(/[\u200B\u200E\u200F\u2028\u2060\uFEFF]/g, '').trim();
+  // Görünmez karakterler (zero-width space, ZWJ/ZWNJ, bidi kontrolleri vb.)
+  // silinir: yalnızca görünmez karakterlerden oluşan satırlar filtrelenir;
+  // aksi halde RichText bunları tam satır yüksekliğinde boş satırlar olarak
+  // çizip kart içinde 100-600px boşluklar oluşturur.
+  const clean = (l: string) =>
+    l.replace(/[\u00AD\u180E\u200B-\u200F\u202A-\u202E\u2060-\u206F\uFE00-\uFE0F\uFEFF]/g, '').trim();
   for (const raw of body.split('\n')) {
     const line = clean(raw);
     if (!line) continue;
@@ -475,6 +477,12 @@ function StepsCard({ section }: { section: Section }) {
 function CostCard({ section }: { section: Section }) {
   const { t } = useTranslation();
   const { diy, pro, save, rest } = parseCost(section.body);
+  if (__DEV__) {
+    console.log('[COSTCARD] heading=', JSON.stringify(section.heading));
+    console.log('[COSTCARD] body=', JSON.stringify(section.body));
+    console.log('[COSTCARD] diy=', JSON.stringify(diy), 'pro=', JSON.stringify(pro), 'save=', JSON.stringify(save));
+    console.log('[COSTCARD] rest=', JSON.stringify(rest));
+  }
   return (
     <View style={[styles.sectionCard, styles.costCard]}>
       <Text style={styles.costTitle}>{section.heading}</Text>

@@ -16,7 +16,14 @@ interface Props {
  * - "1. " -> numaralı liste
  * - "**kalın**" -> kalın (iç satırda)
  * - boş satır -> paragraf boşluğu
+ * - yalnızca görünmez karakterlerden oluşan satır -> HİÇ çizilmez (tam satır
+ *   yüksekliğinde boş paragraf oluşturup kartlarda 100-600px boşluk yaratır)
  */
+
+// Sıfır genişlikte / görünmez karakterler: ZWSP, ZWNJ, ZWJ, LRM/RLM, bidi
+// kontrolleri, kelime birleştirici, görünmez işleçler, varyasyon seçiciler, BOM.
+const INVISIBLE_RE = /[\u00AD\u180E\u200B-\u200F\u202A-\u202E\u2060-\u206F\uFE00-\uFE0F\uFEFF]/g;
+
 export default function RichText({ content, color }: Props) {
   const lines = content.split('\n');
 
@@ -24,10 +31,12 @@ export default function RichText({ content, color }: Props) {
   let listMode: 'none' | 'bullet' | 'number' = 'none';
 
   lines.forEach((line, idx) => {
-    const trimmed = line.trim();
+    const stripped = line.replace(INVISIBLE_RE, '');
+    const trimmed = stripped.trim();
 
     if (!trimmed) {
       listMode = 'none';
+      if (stripped.length === 0) return;
       blocks.push(<View key={idx} style={styles.spacer} />);
       return;
     }

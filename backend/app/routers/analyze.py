@@ -54,6 +54,12 @@ async def chat_stream(req: ChatRequest):
             return
         if not full:
             raise HTTPException(status_code=502, detail="EMPTY")
+        # GECICI DEBUG (pasif): tam yaniti repr() ile dosyaya yaz (invisible char'lar gorsun)
+        # try:
+        #     with open(r"C:\Users\barda\AppData\Local\Temp\opencode\fixora_analysis_debug.txt", "a", encoding="utf-8") as _df:
+        #         _df.write(repr(full) + "\n=====\n")
+        # except Exception:
+        #     pass
         yield "data: [DONE]\n\n"
 
     return StreamingResponse(
