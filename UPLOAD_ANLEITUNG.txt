@@ -1,0 +1,71 @@
+============================================================
+FIXORA BACKEND - HOSTBOTT DATEI (DOSYA) YUKLEME TALIMATI
+============================================================
+
+Yuklenmesi gereken arsiv:
+   fixora-backend-upload.zip   (bu klasordeki)
+
+ARŞİVDE NELER VAR (sitenin kokune bu yapi aynen yuklenmeli):
+---------------------------------------------------------
+<site kok>/
+├── app/
+│   ├── __init__.py
+│   ├── config.py
+│   ├── main.py
+│   ├── routers/
+│   │   ├── __init__.py
+│   │   └── analyze.py
+│   └── services/
+│       ├── __init__.py
+│       └── gemini.py
+├── requirements.txt
+└── .env.example      <- bunu .env olarak yeniden adlandir (aşağıya bak)
+
+ADIM ADIM
+---------------------------------------------------------
+1) HostBott paneline gir (panel.hostbott.ch) -> siten -> "Datei" / Dosya
+   Yoneticisi (veya FTP).
+
+2) Zip icindeki KOK dosyalari sitenin ANA klasorune yukle:
+   - app klasorunu oldugu gibi yukle (app/main.py, app/config.py ... )
+   - requirements.txt
+   - .env.example
+
+   Dikkat: zip'ten cikarirken app/ klasoru site kokune direkt gelsin.
+   Yanlis olan: <site>/htdocs/app/app/main.py (tekrar etmeyin).
+
+3) .env dosyasini OLUSTUR: site kokunde ".env.example" dosyasini kopyalayip
+   adini ".env" yap, icindeki anahtarlari gercek Gemini anahtarlarinla degistir:
+
+   GEMINI_API_KEYS=["AQ.gercek1","AQ.gercek2","AQ.gercek3","AQ.gercek4","AQ.gercek5"]
+   GEMINI_MODELS=["gemini-3.5-flash","gemini-3.1-flash-lite"]
+   QUOTA_COOLDOWN_SECONDS=600
+   DEFAULT_LANGUAGE=de
+   INPUT_RETENTION_MINUTES=15
+
+4) Panele geri don -> sitenin ayarlarinda Python Runtime'i ac (Python 3.13)
+   ve "App-Modul" alanina su adresi yaz:
+
+   app.main:app
+
+5) Deployment'i tetikle (yeniden derle / baslat). Platform requirements.txt'i
+   okuyup paketleri kendi virtualenv'ine kuracak ve gunicorn+uvicorn ile
+   uygulamayi baslatacak.
+
+6) Dogrulama - tarayici ile:
+   https://<senin-site>.hostbott.site/health
+   -> {"status":"ok"} gorursen kurulum tamamdir.
+
+SONRASINDA MOBIL UYGULAMA
+---------------------------------------------------------
+7) Desktop\FIXORA\src\auth\config.ts icinde BACKEND_URL'i degistir:
+   export const BACKEND_URL = 'https://<senin-site>.hostbott.site';
+
+8) APK'yi yeniden derle (android klasorunde):
+   $env:JAVA_HOME = "C:\Program Files\Eclipse Adoptium\jdk-21.0.12.8-hotspot"
+   .\gradlew.bat assembleRelease
+
+9) Yeni APK'yi telefona kur ve dene.
+
+OZET: YUKLENECEK DOSYALAR = app klasoru + requirements.txt + .env (olustur)
+ZIP:  fixora-backend-upload.zip

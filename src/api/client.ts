@@ -5,7 +5,7 @@ import * as VideoThumbnails from 'expo-video-thumbnails';
 
 import { BACKEND_URL, DEFAULT_MODEL_ID } from '../auth/config';
 
-// Gemini anahtarlari ve kota rotasyonu ARTIK sunucuda yapilir (fixora/backend).
+// Gemini anahtarlari ve kota rotasyonu ARTIK sunucuda yapilir (Desktop\FIXORA\backend).
 // Bu istemci yalnizca backend'e baglanir:
 //   - /api/chat/stream  (SSE, kelime kelime akmasi)
 //   - /api/chat         (tek parca JSON cevap)

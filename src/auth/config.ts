@@ -1,5 +1,5 @@
 // Yapilandirma: Gemini anahtarlari ve kota rotasyonu ARTIK cihazda DEGIL,
-// kendi backend sunucumuzda duruyor (bkz. fixora/backend). Telefon yalnizca
+// kendi backend sunucumuzda duruyor (bkz. Desktop\FIXORA\backend). Telefon yalnizca
 // backend'e baglanir; API anahtarlari asla APK icine gomulmez.
 //
 // Uygulamayi sunucuya baglamak icin BACKEND_URL'i doldurun:
