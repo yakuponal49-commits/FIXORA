@@ -301,7 +301,13 @@ function parseCost(body: string): { diy?: string; pro?: string; save?: string; r
   let pro: string | undefined;
   let save: string | undefined;
   const rest: string[] = [];
-  for (const line of body.split('\n').map((l) => l.trim()).filter(Boolean)) {
+  // Görünmez karakterler (zero-width space vb.) silinir: yalnızca görünmez
+  // karakterlerden oluşan satırlar filtrelenir; aksi halde RichText bunları
+  // tam satır yüksekliğinde boş satırlar olarak çizip boşluklar oluşturur.
+  const clean = (l: string) => l.replace(/[\u200B\u200E\u200F\u2028\u2060\uFEFF]/g, '').trim();
+  for (const raw of body.split('\n')) {
+    const line = clean(raw);
+    if (!line) continue;
     if (/^[-•*\s]*DIY:/i.test(line)) diy = line.replace(/^[-•*\s]*DIY:\s*/i, '').trim();
     else if (/^[-•*\s]*Pro:/i.test(line)) pro = line.replace(/^[-•*\s]*Pro:\s*/i, '').trim();
     else if (/^[-•*\s]*Save:/i.test(line)) save = line.replace(/^[-•*\s]*Save:\s*/i, '').trim();
