@@ -1,0 +1,15 @@
+{
+  "packages": [
+    "opencode-envsitter-guard",
+    "opencode-websearch-cited",
+    "opencode-mem",
+    "opencode-pty",
+    "composio-mcp"
+  ],
+  "settings": {
+    "security_guard": true,
+    "enable_web_search": true,
+    "persistent_memory": true,
+    "interactive_terminal": true
+  }
+}

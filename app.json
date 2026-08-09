@@ -1,0 +1,62 @@
+{
+  "expo": {
+    "name": "FIXORA",
+    "slug": "fixora",
+    "version": "1.0.0",
+    "description": "FIXORA is your AI home repair assistant. Take a photo or video of a broken appliance, faucet, car or furniture, describe the problem and get an instant step-by-step repair guide, safety warnings, cost estimate and local professional recommendations. Repair it yourself or find a nearby expert.",
+    "orientation": "portrait",
+    "scheme": "fixora",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.fixora.app",
+      "infoPlist": {
+        "NSCameraUsageDescription": "FIXORA braucht Zugriff auf die Kamera, um Ihr Reparaturproblem zu analysieren.",
+        "NSPhotoLibraryUsageDescription": "FIXORA braucht Zugriff auf Ihre Fotos, um Ihr Reparaturproblem zu analysieren.",
+        "NSMicrophoneUsageDescription": "FIXORA braucht Zugriff auf das Mikrofon, um Ihre Sprachnachricht aufzunehmen."
+      }
+    },
+    "android": {
+      "package": "com.fixora.app",
+      "adaptiveIcon": {
+        "backgroundColor": "#142A4C",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "FIXORA braucht Zugriff auf das Mikrofon, um Ihre Sprachnachricht aufzunehmen.",
+          "recordAudioAndroid": true
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "FIXORA braucht Zugriff auf Ihre Fotos, um Ihr Reparaturproblem zu analysieren.",
+          "cameraPermission": "FIXORA braucht Zugriff auf die Kamera, um Ihr Reparaturproblem zu analysieren.",
+          "microphonePermission": "FIXORA braucht Zugriff auf das Mikrofon, um Ihre Sprachnachricht aufzunehmen."
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "FIXORA nutzt Ihren Standort, um nahegelegene Fachgeschäfte und Handwerker zu finden."
+        }
+      ],
+      "expo-localization",
+      "expo-video"
+    ],
+    "extra": {
+      "googleWebClientId": "YOUR_WEB_CLIENT_ID.apps.googleusercontent.com"
+    }
+  }
+}

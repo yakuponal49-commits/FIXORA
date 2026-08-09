@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8" />
+<title>FIXORA / Google oturum aclma</title>
+</head>
+<body>
+<p>Google oturumunuz aciliyor...</p>
+<script>
+// Google, onaydan sonra bu sayfayı su adreste acar:
+//   https://nova-reinigung-transport.ch/oauth2callback.html?code=...
+// Kodu, uygulamanın dinledigi custom scheme'ye (fixora://oauth2redirect) iletiriz.
+(function () {
+  var code = new URLSearchParams(window.location.search).get('code');
+  var target = 'fixora://oauth2redirect?code=' + encodeURIComponent(code || '');
+  // Yönlendirme (302) tarzında uygulamaya yönlendirilir.
+  window.location.replace(target);
+})();
+</script>
+</body>
+</html>
