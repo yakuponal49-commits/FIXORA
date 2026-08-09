@@ -77,32 +77,30 @@ function openMaps(q: string, lat?: number, lng?: number, place?: string) {
 function materialKey(language: string) {
   if (language === 'de') return 'Baumarkt Baustoffe';
   if (language === 'fr') return 'magasin bricolage';
-  if (language === 'it') return 'ferramenta';
-  if (language === 'tr') return 'yapı market hırdavat';
   return 'hardware store building materials';
 }
 
 /** Kategori + alt kategoriye gore meslek grubu (harita aramasi icin, dile gore). */
 function professionForCategory(category: string | undefined, language: string): string {
   const byLang: Record<string, Record<string, string>> = {
-    plumbing: { de: 'Klempner Sanitär', fr: 'plombier', it: 'idraulico', tr: 'su tesisatçısı', en: 'plumber' },
-    appliances: { de: 'Haushaltsgeräte Reparatur', fr: 'réparation électroménager', it: 'riparazione elettrodomestici', tr: 'beyaz eşya tamircisi', en: 'appliance repair' },
-    electronics: { de: 'Elektronik Reparatur', fr: 'réparation électronique', it: 'riparazione elettronica', tr: 'elektronik tamircisi', en: 'electronics repair' },
-    car: { de: 'Kfz-Werkstatt', fr: 'garage automobile', it: 'officina auto', tr: 'oto tamirci', en: 'auto repair shop' },
-    furniture: { de: 'Möbelreparatur', fr: 'réparation de meubles', it: 'riparazione mobili', tr: 'mobilya tamircisi', en: 'furniture repair' },
+    plumbing: { de: 'Klempner Sanitär', fr: 'plombier', en: 'plumber' },
+    appliances: { de: 'Haushaltsgeräte Reparatur', fr: 'réparation électroménager', en: 'appliance repair' },
+    electronics: { de: 'Elektronik Reparatur', fr: 'réparation électronique', en: 'electronics repair' },
+    car: { de: 'Kfz-Werkstatt', fr: 'garage automobile', en: 'auto repair shop' },
+    furniture: { de: 'Möbelreparatur', fr: 'réparation de meubles', en: 'furniture repair' },
   };
   const map = byLang[category ?? ''] ?? {};
-  return map[language] ?? (language === 'tr' ? 'tamir ustası' : language === 'de' ? 'Handwerker' : language === 'fr' ? 'artisan' : language === 'it' ? 'artigiano' : 'repair service');
+  return map[language] ?? (language === 'de' ? 'Handwerker' : language === 'fr' ? 'artisan' : 'repair service');
 }
 
 /** Kategoriye gore malzeme/tedarikci aramasi (harita, dile gore). */
 function suppliesForCategory(category: string | undefined, language: string): string {
   const byLang: Record<string, Record<string, string>> = {
-    plumbing: { de: 'Sanitärbedarf', fr: 'magasin plomberie', it: 'negozio idraulica', tr: 'sıhhi tesisat malzemesi', en: 'plumbing supplies' },
-    appliances: { de: 'Ersatzteile Haushalt', fr: 'pièces détachées électroménager', it: 'ricambi elettrodomestici', tr: 'beyaz eşya yedek parça', en: 'appliance spare parts' },
-    electronics: { de: 'Ersatzteile Elektronik', fr: 'pièces détachées électronique', it: 'ricambi elettronica', tr: 'elektronik yedek parça', en: 'electronics spare parts' },
-    car: { de: 'Autoteile Zubehör', fr: 'pièces auto', it: 'ricambi auto', tr: 'oto yedek parça', en: 'auto parts' },
-    furniture: { de: 'Baumarkt', fr: 'magasin bricolage', it: 'ferramenta', tr: 'yapı market', en: 'hardware store' },
+    plumbing: { de: 'Sanitärbedarf', fr: 'magasin plomberie', en: 'plumbing supplies' },
+    appliances: { de: 'Ersatzteile Haushalt', fr: 'pièces détachées électroménager', en: 'appliance spare parts' },
+    electronics: { de: 'Ersatzteile Elektronik', fr: 'pièces détachées électronique', en: 'electronics spare parts' },
+    car: { de: 'Autoteile Zubehör', fr: 'pièces auto', en: 'auto parts' },
+    furniture: { de: 'Baumarkt', fr: 'magasin bricolage', en: 'hardware store' },
   };
   const map = byLang[category ?? ''] ?? {};
   return map[language] ?? materialKey(language);
@@ -112,8 +110,6 @@ function suppliesForCategory(category: string | undefined, language: string): st
 function serviceWord(language: string): string {
   if (language === 'de') return 'Reparatur';
   if (language === 'fr') return 'réparation';
-  if (language === 'it') return 'riparazione';
-  if (language === 'tr') return 'tamiri';
   return 'repair';
 }
 

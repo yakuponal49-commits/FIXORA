@@ -13,19 +13,15 @@ interface Props {
 }
 
 const LANG_LABELS: Record<Language, string> = {
+  en: 'English',
   de: 'Deutsch',
   fr: 'Français',
-  it: 'Italiano',
-  en: 'English',
-  tr: 'Türkçe',
 };
 
 const LANG_FLAGS: Record<Language, string> = {
+  en: '🇬🇧',
   de: '🇩🇪',
   fr: '🇫🇷',
-  it: '🇮🇹',
-  en: '🇬🇧',
-  tr: '🇹🇷',
 };
 
 export default function LanguageSelectScreen({ selected, onSelect }: Props) {
