@@ -25,6 +25,8 @@ import {
   loadHistory,
   saveHistory,
 } from './src/storage/history';
+import { parseQuestionBlock } from './src/utils/questionBlock';
+import { estimateSavings } from './src/utils/savings';
 
 const LANG_KEY = 'fixora.lang';
 
@@ -66,6 +68,7 @@ export default function App() {
   const [proOpen, setProOpen] = useState(false);
   const [ratingPrompt, setRatingPrompt] = useState(false);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
+  const [activeHistoryId, setActiveHistoryId] = useState<string | null>(null);
 
   useEffect(() => {
     AsyncStorage.getItem(LANG_KEY).then((stored) => {
@@ -101,8 +104,10 @@ export default function App() {
     AsyncStorage.getItem('fixora.rated').then((r) => {
       if (!r) setRatingPrompt(true);
     });
+    const entry = entryFromAnalysis(input, result);
+    setActiveHistoryId(entry.id);
     setHistory((prev) => {
-      const next = [entryFromAnalysis(input, result), ...prev];
+      const next = [entry, ...prev];
       saveHistory(next);
       return next;
     });
@@ -116,14 +121,28 @@ export default function App() {
     });
   };
 
+  /** ResultScreen'deki devam sohbeti tamamlandıkça history kaydını günceller. */
+  const onAnalysisUpdated = (text: string) => {
+    setHistory((prev) => {
+      const next = prev.map((e) =>
+        e.id === activeHistoryId ? { ...e, analysis: text, saved: estimateSavings(text) } : e
+      );
+      saveHistory(next);
+      return next;
+    });
+  };
+
   const onOpenEntry = (entry: HistoryEntry) => {
+    // Kayıtlı analiz, AI'ın soru bloğunu içeriyorsa soru yeniden sorulmaması için
+    // temiz halini açar. (Sorular ilk sohbette cevaplanmıştır.)
     setOriginal({
       language: entry.language as Language,
       description: entry.description,
       category: entry.category,
       subcategory: entry.subcategory,
     });
-    setAnalysis(entry.analysis);
+    setActiveHistoryId(entry.id);
+    setAnalysis(parseQuestionBlock(entry.analysis).clean);
   };
 
   if (!langLoaded) {
@@ -187,6 +206,7 @@ export default function App() {
             modelId={modelId}
             original={original}
             onBack={() => setAnalysis(null)}
+            onAnalysisUpdated={onAnalysisUpdated}
           />
         </View>
       )}

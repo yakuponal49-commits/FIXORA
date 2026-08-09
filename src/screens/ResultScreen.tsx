@@ -24,6 +24,7 @@ import RichText from '../components/RichText';
 import ThinkingLoader from '../components/ThinkingLoader';
 import { findSubcategory } from '../data/categories';
 import { estimateSavings } from '../utils/savings';
+import { parseQuestionBlock } from '../utils/questionBlock';
 import { RADIUS, SPACING } from '../theme';
 
 // Açık tema — rakip "RepairBuddy" sonuç ekranı düzenine göre (piksel örneklemesiyle
@@ -62,6 +63,7 @@ interface Props {
   modelId: string;
   original: AnalyzeInput;
   onBack: () => void;
+  onAnalysisUpdated?: (text: string) => void;
 }
 
 function openMaps(q: string, lat?: number, lng?: number, place?: string) {
@@ -131,39 +133,7 @@ function buildShareText(
   return lines.join('\n');
 }
 
-/** AI yanitindaki yapilandirilmis soru + secenek blogunu ayiklar. (DEĞİŞMEDİ) */
-function parseQuestionBlock(text: string): {
-  clean: string;
-  question: string | null;
-  options: string[];
-} {
-  const START = 'QUESTION_BLOCK_START';
-  const END = 'QUESTION_BLOCK_END';
-  const OPS = 'OPTIONS_START';
-  const OPE = 'OPTIONS_END';
-  const s = text.indexOf(START);
-  const e = text.indexOf(END);
-  if (s === -1 || e === -1 || e < s) return { clean: text, question: null, options: [] };
-  const block = text.slice(s, e + END.length);
-  const clean = (text.slice(0, s) + text.slice(e + END.length)).replace(/\n{3,}/g, '\n\n').trim();
-  const oStart = block.indexOf(OPS);
-  const oEnd = block.indexOf(OPE);
-  const question =
-    block
-      .slice(START.length, oStart !== -1 ? oStart : block.length)
-      .trim()
-      .replace(/^OPTIONS_END?\s*/, '')
-      .replace(/\s+/g, ' ') || null;
-  let options: string[] = [];
-  if (oStart !== -1 && oEnd !== -1) {
-    options = block
-      .slice(oStart + OPS.length, oEnd)
-      .split('\n')
-      .map((x) => x.replace(/^[-•\d.\s]+/, '').trim())
-      .filter(Boolean);
-  }
-  return { clean, question, options };
-}
+/** AI yanitindaki yapilandirilmis soru + secenek blogunu ayiklar. */
 
 /**
  * Markdown basliklarina (## / ###) gore metni bolumlere ayirir. (DEĞİŞMEDİ)
@@ -381,7 +351,7 @@ function AccuracyCard({ section }: { section: Section }) {
           </View>
         )}
         <View style={styles.accuracyTextCol}>
-          <RichText content={body} />
+          <RichText content={body} color={CREAM.text} />
         </View>
       </View>
     </View>
@@ -397,7 +367,7 @@ function SafetyCard({ section }: { section: Section }) {
     <View style={[styles.sectionCard, styles.plainCard]}>
       <Text style={styles.sectionHeading}>{section.heading}</Text>
       {risk && <RiskPill level={risk} />}
-      <RichText content={body} />
+      <RichText content={body} color={CREAM.text} />
     </View>
   );
 }
@@ -441,7 +411,7 @@ function StepsCard({ section }: { section: Section }) {
           <Text style={styles.stepsSummary}>{inlineParts(summary)}</Text>
         </View>
       )}
-      {rest.length > 0 && <RichText content={rest.join('\n')} />}
+      {rest.length > 0 && <RichText content={rest.join('\n')} color={CREAM.text} />}
       {steps.map((s, idx) => (
         <View key={s.n} style={[styles.stepBlock, idx < steps.length - 1 && styles.stepBlockDivider]}>
           <View style={styles.stepRow}>
@@ -453,7 +423,7 @@ function StepsCard({ section }: { section: Section }) {
 
           {s.desc.length > 0 && (
             <View style={styles.stepDescWrap}>
-              <RichText content={s.desc.join('\n')} />
+              <RichText content={s.desc.join('\n')} color={CREAM.text} />
             </View>
           )}
 
@@ -502,7 +472,7 @@ function CostCard({ section }: { section: Section }) {
   return (
     <View style={[styles.sectionCard, styles.costCard]}>
       <Text style={styles.costTitle}>{section.heading}</Text>
-      {rest.length > 0 && <RichText content={rest.join('\n')} />}
+      {rest.length > 0 && <RichText content={rest.join('\n')} color={CREAM.text} />}
       {(diy || pro) && (
         <View>
           {pro && (
@@ -540,7 +510,7 @@ function BaseCard({ section }: { section: Section }) {
   return (
     <View style={[styles.sectionCard, styles.plainCard]}>
       {section.heading ? <Text style={styles.sectionHeading}>{section.heading}</Text> : null}
-      <RichText content={section.body} />
+      <RichText content={section.body} color={CREAM.text} />
     </View>
   );
 }
@@ -701,7 +671,7 @@ function CanFixCard({ language, original }: { language: string; original: Analyz
   );
 }
 
-export default function ResultScreen({ analysis, language, modelId, original, onBack }: Props) {
+export default function ResultScreen({ analysis, language, modelId, original, onBack, onAnalysisUpdated }: Props) {
   const { t } = useTranslation();
   const [turns, setTurns] = useState<ChatTurn[]>([]);
   const [message, setMessage] = useState('');
@@ -747,6 +717,7 @@ export default function ResultScreen({ analysis, language, modelId, original, on
       streamTextRef.current = null;
       setTurns([...next, { role: 'assistant', text: reply }]);
       setStreamText(null);
+      onAnalysisUpdated?.(reply);
     } catch (e) {
       const partial = streamTextRef.current;
       streamTextRef.current = null;
@@ -958,7 +929,7 @@ export default function ResultScreen({ analysis, language, modelId, original, on
 
           {streamText !== null && streamText.trim() !== '' && (
             <View style={styles.messageBubble}>
-              <RichText content={streamText} />
+              <RichText content={streamText} color={CREAM.text} />
               <Text style={styles.cursor}>▋</Text>
             </View>
           )}
