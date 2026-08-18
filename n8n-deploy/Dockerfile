@@ -8,8 +8,8 @@ USER node
 
 ENV N8N_PORT=5678
 ENV N8N_PROTOCOL=https
-ENV WEBHOOK_URL=https://n8n.fixora.app
 ENV N8N_RUNNERS_ENABLED=true
+ENV WEBHOOK_URL=https://fixora-n8n.onrender.com
 
 EXPOSE 5678
 
