@@ -257,6 +257,13 @@ export interface Dict {
 
   // AI soru-cevap butonu
   qnaCta: string;
+
+  // Gunluk analiz hakki
+  dailyRemaining: string;
+  dailyLimitReached: string;
+  dailyLimitTitle: string;
+  dailyLimitDesc: string;
+  goPro: string;
 }
 
 const de: Dict = {
@@ -519,6 +526,11 @@ const de: Dict = {
   confidenceLow: 'Niedrig',
   safetyFirstLabel: 'Sicherheit zuerst',
   qnaCta: 'Konnte ich helfen? Falls nicht, können Sie mit der KI chatten — stellen Sie Ihre Fragen hier.',
+  dailyRemaining: 'Verbleibende kostenlose Analysen heute',
+  dailyLimitReached: 'Ihr tägliches kostenloses Limit ist aufgebraucht.',
+  dailyLimitTitle: 'Limit erreicht',
+  dailyLimitDesc: 'Sie haben Ihr tägliches kostenloses Analyse-Limit erreicht. Für weitere Analysen upgraden Sie auf PRO.',
+  goPro: 'Zu PRO wechseln',
 };
 
 const fr: Dict = {
@@ -781,6 +793,11 @@ const fr: Dict = {
   confidenceLow: 'Faible',
   safetyFirstLabel: "Sécurité d'abord",
   qnaCta: "Ai-je pu vous aider ? Sinon, vous pouvez discuter avec l'IA — posez vos questions ici.",
+  dailyRemaining: 'Analyses gratuites restantes aujourd\'hui',
+  dailyLimitReached: 'Votre limite gratuite quotidienne est épuisée.',
+  dailyLimitTitle: 'Limite atteinte',
+  dailyLimitDesc: 'Vous avez atteint votre limite quotidienne d\'analyses gratuites. Pour plus d\'analyses, passez à PRO.',
+  goPro: 'Passer à PRO',
 };
 
 const en: Dict = {
@@ -1038,6 +1055,11 @@ const en: Dict = {
   confidenceLow: 'Low',
   safetyFirstLabel: 'Safety first',
   qnaCta: 'Did I help? If not, you can chat with the AI — ask your questions here.',
+  dailyRemaining: 'Free analyses remaining today',
+  dailyLimitReached: 'Your daily free limit has been reached.',
+  dailyLimitTitle: 'Limit reached',
+  dailyLimitDesc: 'You have reached your daily free analysis limit. For more analyses, upgrade to PRO.',
+  goPro: 'Upgrade to PRO',
 };
 
 export const translations: Record<Language, Dict> = { en, de, fr };

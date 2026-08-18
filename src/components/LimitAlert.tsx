@@ -12,28 +12,19 @@ import {
 
 import { COLORS, RADIUS, SPACING } from '../theme';
 
-interface PromoAlertProps {
+interface LimitAlertProps {
   visible: boolean;
-  type: 'success' | 'error';
-  title: string;
-  message: string;
   onClose: () => void;
+  onGoPro: () => void;
 }
 
-export default function PromoAlert({
-  visible,
-  type,
-  title,
-  message,
-  onClose,
-}: PromoAlertProps) {
+export default function LimitAlert({ visible, onClose, onGoPro }: LimitAlertProps) {
   const { t } = useTranslation();
   const entrance = useRef(new Animated.Value(0)).current;
   const pulse = useRef(new Animated.Value(0)).current;
   const pulseAnim = useRef<Animated.CompositeAnimation | null>(null);
 
-  const isSuccess = type === 'success';
-  const accent = isSuccess ? COLORS.success : COLORS.danger;
+  const accent = '#F59E0B';
 
   useEffect(() => {
     if (visible) {
@@ -58,14 +49,12 @@ export default function PromoAlert({
       );
       pulseAnim.current.start();
 
-      const timer = setTimeout(() => onClose(), 3400);
       return () => {
-        clearTimeout(timer);
         pulseAnim.current?.stop();
       };
     }
     return undefined;
-  }, [visible, entrance, pulse, onClose]);
+  }, [visible, entrance, pulse]);
 
   if (!visible) return null;
 
@@ -102,17 +91,25 @@ export default function PromoAlert({
                 { backgroundColor: accent, transform: [{ scale: iconScale }] },
               ]}
             >
-              <Text style={styles.iconMark}>
-                {isSuccess ? '✓' : '✕'}
-              </Text>
+              <Text style={styles.iconMark}>!</Text>
             </Animated.View>
           </View>
 
-          <Text style={[styles.title, { color: accent }]}>{title}</Text>
-          <Text style={styles.message}>{message}</Text>
+          <Text style={[styles.title, { color: accent }]}>{t('dailyLimitTitle')}</Text>
+          <Text style={styles.message}>{t('dailyLimitDesc')}</Text>
 
-          <Pressable style={[styles.button, { backgroundColor: accent }]} onPress={onClose}>
-            <Text style={styles.buttonText}>{t('close')}</Text>
+          <Pressable
+            style={[styles.button, styles.proButton]}
+            onPress={() => {
+              onClose();
+              onGoPro();
+            }}
+          >
+            <Text style={styles.proButtonText}>{t('goPro')}</Text>
+          </Pressable>
+
+          <Pressable style={styles.closeButton} onPress={onClose}>
+            <Text style={styles.closeButtonText}>{t('close')}</Text>
           </Pressable>
         </Animated.View>
       </View>
@@ -188,9 +185,22 @@ const styles = StyleSheet.create({
     borderRadius: RADIUS,
     alignItems: 'center',
   },
-  buttonText: {
+  proButton: {
+    backgroundColor: COLORS.primary,
+    marginBottom: SPACING,
+  },
+  proButtonText: {
     color: '#FFFFFF',
     fontWeight: 'bold',
     fontSize: 15,
+  },
+  closeButton: {
+    paddingVertical: SPACING * 0.5,
+    alignItems: 'center',
+  },
+  closeButtonText: {
+    color: COLORS.textMuted,
+    fontSize: 14,
+    fontWeight: '500',
   },
 });

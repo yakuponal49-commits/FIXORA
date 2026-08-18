@@ -1,10 +1,10 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const PRO_KEY = 'fixora.pro';
-const PRO_EXPIRY_KEY = 'fixora.pro.expiry'; // Pro sona erme tarihi (timestamp)
+const PRO_EXPIRY_KEY = 'fixora.pro.expiry';
+const PRO_TYPE_KEY = 'fixora.pro.type';
 const DAILY_USAGE_KEY = 'fixora.daily.usage';
 
-/** Ücretsiz kullanıcı için günlük analiz limiti. */
 export const FREE_DAILY_LIMIT = 1;
 
 export async function isPro(): Promise<boolean> {
@@ -12,12 +12,13 @@ export async function isPro(): Promise<boolean> {
     const proStatus = (await AsyncStorage.getItem(PRO_KEY)) === '1';
     if (!proStatus) return false;
 
-    // Pro süresi dolmuş mı kontrol et
+    const type = await AsyncStorage.getItem(PRO_TYPE_KEY);
+    if (type === 'promo') return true;
+
     const expiryStr = await AsyncStorage.getItem(PRO_EXPIRY_KEY);
     if (expiryStr) {
       const expiry = parseInt(expiryStr, 10);
       if (Date.now() > expiry) {
-        // Pro süresi doldu, resetle
         await setPro(false);
         return false;
       }
@@ -36,11 +37,34 @@ export async function setPro(on: boolean, durationDays?: number): Promise<void> 
       if (durationDays) {
         const expiry = Date.now() + durationDays * 24 * 60 * 60 * 1000;
         await AsyncStorage.setItem(PRO_EXPIRY_KEY, expiry.toString());
+        await AsyncStorage.setItem(PRO_TYPE_KEY, 'paid');
       }
     } else {
       await AsyncStorage.removeItem(PRO_KEY);
       await AsyncStorage.removeItem(PRO_EXPIRY_KEY);
+      await AsyncStorage.removeItem(PRO_TYPE_KEY);
     }
+  } catch {
+    /* yoksay */
+  }
+}
+
+export async function setProUnlimited(): Promise<void> {
+  try {
+    await AsyncStorage.setItem(PRO_KEY, '1');
+    await AsyncStorage.setItem(PRO_TYPE_KEY, 'promo');
+    await AsyncStorage.removeItem(PRO_EXPIRY_KEY);
+  } catch {
+    /* yoksay */
+  }
+}
+
+export async function setProLimited(durationDays: number): Promise<void> {
+  const expiry = Date.now() + durationDays * 24 * 60 * 60 * 1000;
+  try {
+    await AsyncStorage.setItem(PRO_KEY, '1');
+    await AsyncStorage.setItem(PRO_TYPE_KEY, 'paid');
+    await AsyncStorage.setItem(PRO_EXPIRY_KEY, expiry.toString());
   } catch {
     /* yoksay */
   }
@@ -75,7 +99,6 @@ async function writeDailyUsage(u: DailyUsage): Promise<void> {
   }
 }
 
-/** Analiz yapılabilir mi? (Pro her zaman evet, ücretsizde günlük limit.) */
 export async function canAnalyze(): Promise<{ allowed: boolean; remaining: number }> {
   const pro = await isPro();
   if (pro) return { allowed: true, remaining: Infinity };
@@ -83,7 +106,13 @@ export async function canAnalyze(): Promise<{ allowed: boolean; remaining: numbe
   return { allowed: u.count < FREE_DAILY_LIMIT, remaining: Math.max(0, FREE_DAILY_LIMIT - u.count) };
 }
 
-/** Başarılı bir analizden sonra kullanımı artırır. */
+export async function getRemainingDaily(): Promise<number> {
+  const pro = await isPro();
+  if (pro) return Infinity;
+  const u = await readDailyUsage();
+  return Math.max(0, FREE_DAILY_LIMIT - u.count);
+}
+
 export async function recordAnalysis(): Promise<void> {
   const pro = await isPro();
   if (pro) return;

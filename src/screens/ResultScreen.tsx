@@ -568,23 +568,25 @@ function SectionCard({ section, index }: { section: Section; index: number }) {
   return <FadeInView delay={index * 150}>{content}</FadeInView>;
 }
 
-/** YENİ: "Önce güvenlik" — rakip ekranındaki sarı uyarı kartı. Ayrı bir backend
- *  etiketi gerektirmez: mevcut "safety" bölümünün ilk satırından türetilir.
- *  Böyle bir bölüm yoksa hiçbir şey render edilmez (uydurma metin yok). */
-function firstSafetyLine(sections: Section[]): string | null {
-  const safetySection = sections.find((s) => sectionKind(s.heading) === 'safety');
-  if (!safetySection) return null;
-  const body = safetySection.body.replace(/^[-•*\s]*RISK:\s*\*?\*?\s*(HIGH|MEDIUM|LOW)\s*\*?\*?.*$/im, '').trim();
-  const firstLine = body
-    .split('\n')
-    .map((l) => l.replace(/^[-•*\s]+/, '').trim())
-    .find(Boolean);
-  return firstLine ?? null;
+/** Tüm safety bölümlerinin metinlerini tek bir字符串 olarak toplar. */
+function collectSafetyText(sections: Section[]): string | null {
+  const safetySections = sections.filter((s) => sectionKind(s.heading) === 'safety');
+  if (safetySections.length === 0) return null;
+  return safetySections
+    .map((s) => {
+      let body = s.body;
+      // RISK etiketini temizle
+      body = body.replace(/^[-•*\s]*RISK:\s*\*?\*?\s*(HIGH|MEDIUM|LOW)\s*\*?\*?.*$/im, '').trim();
+      return body;
+    })
+    .filter(Boolean)
+    .join('\n\n');
 }
 
 function SafetyFirstCallout({ text }: { text: string }) {
   const { t } = useTranslation();
   const pulse = useRef(new Animated.Value(0)).current;
+  const shake = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     Animated.loop(
@@ -595,19 +597,38 @@ function SafetyFirstCallout({ text }: { text: string }) {
     ).start();
   }, [pulse]);
 
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(shake, { toValue: 1, duration: 150, useNativeDriver: true }),
+        Animated.timing(shake, { toValue: -1, duration: 150, useNativeDriver: true }),
+        Animated.timing(shake, { toValue: 1, duration: 150, useNativeDriver: true }),
+        Animated.timing(shake, { toValue: 0, duration: 150, useNativeDriver: true }),
+        Animated.delay(2000),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [shake]);
+
   const borderColor = pulse.interpolate({
     inputRange: [0, 1],
     outputRange: ['rgba(245, 158, 11, 0.2)', 'rgba(245, 158, 11, 0.8)'],
   });
 
+  const shakeX = shake.interpolate({
+    inputRange: [-1, 0, 1],
+    outputRange: [-3, 0, 3],
+  });
+
   return (
     <Animated.View style={[styles.safetyFirstCard, { borderColor, borderWidth: 2 }]}>
-      <View style={[styles.safetyFirstIcon, { backgroundColor: THEME.warning }]}>
+      <Animated.View style={[styles.safetyFirstIcon, { backgroundColor: THEME.warning }, { transform: [{ translateX: shakeX }] }]}>
         <Text style={styles.safetyFirstIconText}>!</Text>
-      </View>
+      </Animated.View>
       <View style={{ flex: 1 }}>
         <Text selectable style={styles.safetyFirstTitle}>{t('safetyFirstLabel')}</Text>
-        <Text selectable style={styles.safetyFirstText}>{text}</Text>
+        <RichText content={text} color={THEME.text} />
       </View>
     </Animated.View>
   );
@@ -959,13 +980,15 @@ export default function ResultScreen({ analysis, language, modelId, original, on
     const { clean: qClean } = parseQuestionBlock(raw);
     const { clean } = parseProfessionBlock(qClean);
     const sections = parseSections(clean);
-    const safetyFirst = firstSafetyLine(sections);
+    const safetyText = collectSafetyText(sections);
     return (
       <>
-        {safetyFirst && <SafetyFirstCallout text={safetyFirst} />}
-        {sections.map((s, i) => (
-          <SectionCard key={i} section={s} index={i} />
-        ))}
+        {safetyText && <SafetyFirstCallout text={safetyText} />}
+        {sections
+          .filter((s) => sectionKind(s.heading) !== 'safety')
+          .map((s, i) => (
+            <SectionCard key={i} section={s} index={i} />
+          ))}
       </>
     );
   };
@@ -973,7 +996,6 @@ export default function ResultScreen({ analysis, language, modelId, original, on
   const initialParsed = parseQuestionBlock(analysis);
   const initialQuestionVisible = initialParsed.question !== null;
   const files = original.files ?? [];
-  const saved = estimateSavings(analysis);
 
   const lastAssistantText = turns.length
     ? [...turns].reverse().find((t) => t.role === 'assistant')?.text ?? analysis
@@ -1006,7 +1028,45 @@ export default function ResultScreen({ analysis, language, modelId, original, on
           keyboardDismissMode="on-drag"
           automaticallyAdjustKeyboardInsets
         >
-          {/* Yeşil, tam-genişlik "analiz tamamlandı" bandı — rakip ekranındaki koyu yeşil dolgu */}
+          {/* Kullanıcı Özeti — fotoğraf grid + açıklama */}
+          <View style={styles.userSummaryCard}>
+            <View style={styles.userSummaryHead}>
+              <View style={styles.userSummaryIconBadge}>
+                <Text style={styles.userSummaryIconText}>👤</Text>
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.userSummaryTitle}>{t('problemSummary')}</Text>
+              </View>
+            </View>
+            {files.length > 0 && (
+              <View style={styles.userSummaryPhotoGrid}>
+                {files.map((f, i) => (
+                  <View key={i} style={[styles.userSummaryPhotoWrap, files.length === 1 && styles.userSummaryPhotoSingle]}>
+                    {f.type?.startsWith('image') ? (
+                      <Image source={{ uri: f.uri }} style={styles.userSummaryPhotoImg} />
+                    ) : (
+                      <View style={[styles.userSummaryPhotoImg, styles.userSummaryPhotoVideo]}>
+                        <Text style={styles.userSummaryVideoIcon}>▶</Text>
+                      </View>
+                    )}
+                  </View>
+                ))}
+              </View>
+            )}
+            {original.description?.trim() ? (
+              <Text selectable style={styles.userSummaryText}>{original.description.trim()}</Text>
+            ) : null}
+            {turns
+              .filter((u) => u.role === 'user')
+              .map((u, i) => (
+                <View key={i} style={styles.userSummaryAnswerRow}>
+                  <Text selectable style={styles.userSummaryAnswerBullet}>✓</Text>
+                  <Text selectable style={styles.userSummaryAnswer}>{u.text}</Text>
+                </View>
+              ))}
+          </View>
+
+          {/* Yeşil, tam-genişlik "analiz tamamlandı" bandı */}
           <View style={styles.doneBanner}>
             <View style={styles.doneIconBadge}>
               <Text style={styles.doneIcon}>{initialQuestionVisible ? '❓' : '✓'}</Text>
@@ -1019,63 +1079,9 @@ export default function ResultScreen({ analysis, language, modelId, original, on
             </View>
           </View>
 
-          {/* Tasarruf tahmini + paylaşım */}
-          {saved !== null && (
-            <View style={styles.savingsBanner}>
-              <Text style={styles.savingsText}>💰 {t('saveEstimate')}: ~{Math.round(saved)} €</Text>
-            </View>
-          )}
           <Pressable style={styles.shareBtn} onPress={share}>
             <Text style={styles.shareBtnText}>📤 {t('shareResult')}</Text>
           </Pressable>
-
-          {/* Fotoğrafınız */}
-          {files.length > 0 && (
-            <>
-              <Text style={styles.photoHeading}>📷 {t('yourPhoto')}</Text>
-              <View style={styles.photoCard}>
-                <View style={styles.photoGrid}>
-                  {files.map((f, i) => (
-                    <View key={i} style={[styles.photoWrap, files.length === 1 && styles.photoWrapSingle]}>
-                      {f.type?.startsWith('image') ? (
-                        <Image source={{ uri: f.uri }} style={styles.photoImg} />
-                      ) : (
-                        <View style={[styles.photoImg, styles.photoVideo]}>
-                          <Text style={styles.photoVideoIcon}>▶</Text>
-                        </View>
-                      )}
-                    </View>
-                  ))}
-                </View>
-              </View>
-            </>
-          )}
-
-          {/* Sorun Özeti — mor banner, rakip ekranındaki ikon rozetli iki satırlı başlık */}
-          {(original.description?.trim() || turns.some((u) => u.role === 'user')) && (
-            <View style={styles.summaryBox}>
-              <View style={styles.summaryHead}>
-                <View style={styles.summaryIconBadge}>
-                  <Text style={styles.summaryIconText}>🤖</Text>
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.summaryMainTitle}>{t('analysisCompleteTitle')}</Text>
-                  <Text style={styles.summarySubTitle}>{t('problemSummary')}</Text>
-                </View>
-              </View>
-              {original.description?.trim() ? (
-                <Text selectable style={styles.summaryText}>{original.description.trim()}</Text>
-              ) : null}
-              {turns
-                .filter((u) => u.role === 'user')
-                .map((u, i) => (
-                  <View key={i} style={styles.summaryAnswerRow}>
-                    <Text selectable style={styles.summaryAnswerBullet}>✓</Text>
-                    <Text selectable style={styles.summaryAnswer}>{u.text}</Text>
-                  </View>
-                ))}
-            </View>
-          )}
 
           {renderContent(analysis)}
 
@@ -1259,19 +1265,7 @@ const styles = StyleSheet.create({
   doneTitle: { color: THEME.success, fontSize: 16, fontWeight: '800' },
   doneSub: { color: THEME.textMuted, fontSize: 12, marginTop: 3, lineHeight: 17 },
 
-  // Tasarruf bandı + paylaş
-  savingsBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    backgroundColor: 'rgba(16, 185, 129, 0.1)',
-    borderRadius: RADIUS,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    marginBottom: 10,
-  },
-  savingsText: { color: THEME.success, fontSize: 15, fontWeight: '900' },
+  // Paylaşım butonu
   shareBtn: {
     backgroundColor: THEME.cardAlt,
     borderRadius: RADIUS,
@@ -1333,48 +1327,36 @@ const styles = StyleSheet.create({
     flexShrink: 1,
   },
 
-  // Fotoğrafınız
-  photoHeading: { fontSize: 17, fontWeight: '800', color: THEME.text, marginBottom: 10 },
-  photoCard: {
-    backgroundColor: THEME.card,
+  // Kullanıcı Özeti kartı
+  userSummaryCard: {
+    backgroundColor: 'rgba(79, 70, 229, 0.10)',
     borderRadius: RADIUS,
-    padding: 14,
-    marginBottom: 12,
     borderWidth: 1,
-    borderColor: THEME.border,
-  },
-  photoGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, justifyContent: 'center' },
-  photoWrap: { width: 100, height: 100, borderRadius: 14, overflow: 'hidden' },
-  photoWrapSingle: { width: '92%', height: 260 },
-  photoImg: { width: '100%', height: '100%' },
-  photoVideo: { backgroundColor: THEME.cardAlt, alignItems: 'center', justifyContent: 'center' },
-  photoVideoIcon: { color: THEME.text, fontSize: 22 },
-
-  // Sorun Özeti (mor banner, ikon rozetli)
-  summaryBox: {
-    backgroundColor: 'rgba(79, 70, 229, 0.2)',
-    borderRadius: RADIUS,
+    borderColor: 'rgba(79, 70, 229, 0.30)',
     padding: 16,
     marginBottom: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(79, 70, 229, 0.4)',
   },
-  summaryHead: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 10 },
-  summaryIconBadge: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
+  userSummaryHead: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 },
+  userSummaryIconBadge: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
     backgroundColor: THEME.primary,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  summaryIconText: { fontSize: 18 },
-  summaryMainTitle: { color: THEME.primaryLight, fontSize: 16, fontWeight: '800' },
-  summarySubTitle: { color: THEME.textMuted, fontSize: 12, marginTop: 2, fontWeight: '600' },
-  summaryText: { color: THEME.text, fontSize: 15, lineHeight: 22, fontWeight: '600' },
-  summaryAnswerRow: { flexDirection: 'row', gap: 6, marginTop: 6 },
-  summaryAnswerBullet: { color: THEME.neonPurple, fontSize: 13, fontWeight: '900' },
-  summaryAnswer: { color: THEME.text, fontSize: 14, lineHeight: 20, flex: 1 },
+  userSummaryIconText: { fontSize: 16 },
+  userSummaryTitle: { color: THEME.primaryLight, fontSize: 15, fontWeight: '800', flex: 1 },
+  userSummaryPhotoGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 },
+  userSummaryPhotoWrap: { width: 80, height: 80, borderRadius: 12, overflow: 'hidden' },
+  userSummaryPhotoSingle: { width: 200, height: 160 },
+  userSummaryPhotoImg: { width: '100%', height: '100%' },
+  userSummaryPhotoVideo: { backgroundColor: THEME.cardAlt, alignItems: 'center', justifyContent: 'center' },
+  userSummaryVideoIcon: { color: THEME.text, fontSize: 18 },
+  userSummaryText: { color: THEME.text, fontSize: 14, lineHeight: 21, fontWeight: '600' },
+  userSummaryAnswerRow: { flexDirection: 'row', gap: 6, marginTop: 6 },
+  userSummaryAnswerBullet: { color: THEME.neonPurple, fontSize: 12, fontWeight: '900' },
+  userSummaryAnswer: { color: THEME.text, fontSize: 13, lineHeight: 19, flex: 1 },
 
   messageBubble: {
     backgroundColor: THEME.card,
@@ -1415,7 +1397,6 @@ const styles = StyleSheet.create({
   },
   safetyFirstIconText: { color: '#fff', fontWeight: '900', fontSize: 16 },
   safetyFirstTitle: { color: THEME.warning, fontSize: 15, fontWeight: '800', marginBottom: 4 },
-  safetyFirstText: { color: THEME.text, fontSize: 14, lineHeight: 20 },
 
   riskPill: {
     alignSelf: 'flex-start',

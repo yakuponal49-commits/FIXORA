@@ -19,8 +19,7 @@ import LanguageSelectScreen from './src/screens/LanguageSelectScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 import UpgradeModal from './src/components/UpgradeModal';
 import { validatePromoCode } from './src/api/client';
-import { setPro } from './src/storage/pro';
-import { recordAnalysis } from './src/storage/pro';
+import { setPro, setProUnlimited, setProLimited } from './src/storage/pro';
 import {
   HistoryEntry,
   entryFromAnalysis,
@@ -101,7 +100,7 @@ export default function App() {
   const onResult = (input: AnalyzeInput, result: string) => {
     setOriginal(input);
     setAnalysis(result);
-    recordAnalysis();
+    // recordAnalysis() artik HomeScreen'de yapiliyor
     // Bir kez değerlendirme sorulur: henüz kayıt yoksa ana ekranda kartı göster.
     AsyncStorage.getItem('fixora.rated').then((r) => {
       if (!r) setRatingPrompt(true);
@@ -150,7 +149,7 @@ export default function App() {
   const handlePromoCodeSubmit = async (code: string): Promise<boolean> => {
     const result = await validatePromoCode(code);
     if (result.valid) {
-      await setPro(true, 30);
+      await setProUnlimited();
       return true;
     }
     return false;

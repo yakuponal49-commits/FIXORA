@@ -23,13 +23,14 @@ import { AnalyzeInput, PendingMedia, analyzeProblemStream, isAuthError, validate
 import { BACKEND_URL_MISSING } from '../auth/config';
 import { Language, SUPPORTED_LANGUAGES } from '../i18n/translations';
 import { DEMO_IMAGE_BASE64 } from '../data/demo';
-import { canAnalyze as canUseFree, isPro, setPro } from '../storage/pro';
+import { canAnalyze as canUseFree, getRemainingDaily, isPro, recordAnalysis, setPro } from '../storage/pro';
 import { COLORS, RADIUS, SPACING } from '../theme';
 import Logo from '../components/Logo';
 import ThinkingLoader from '../components/ThinkingLoader';
 import RatingCard from '../components/RatingCard';
 import RichText from '../components/RichText';
 import UpgradeModal from '../components/UpgradeModal';
+import LimitAlert from '../components/LimitAlert';
 import PromoAlert from '../components/PromoAlert';
 import CropScreen from './CropScreen';
 
@@ -76,7 +77,9 @@ export default function HomeScreen({
   const [streamText, setStreamText] = useState<string | null>(null);
   const [sourceSheet, setSourceSheet] = useState(false);
   const [upgradeVisible, setUpgradeVisible] = useState(false);
+  const [limitAlertVisible, setLimitAlertVisible] = useState(false);
   const [proStatus, setProStatus] = useState(false);
+  const [remaining, setRemaining] = useState<number | typeof Infinity>(Infinity);
   const [promoAlert, setPromoAlert] = useState<{
     type: 'success' | 'error';
     title: string;
@@ -93,6 +96,8 @@ export default function HomeScreen({
     const checkPro = async () => {
       const pro = await isPro();
       setProStatus(pro);
+      const rem = await getRemainingDaily();
+      setRemaining(rem);
     };
     checkPro();
   }, []);
@@ -227,7 +232,7 @@ export default function HomeScreen({
     }
     const proCheck = await canUseFree();
     if (!proCheck.allowed) {
-      setUpgradeVisible(true);
+      setLimitAlertVisible(true);
       return;
     }
     setLoading(true);
@@ -244,6 +249,9 @@ export default function HomeScreen({
       streamTextRef.current = null;
       setStreamText(null);
       if (!fullText || !fullText.trim()) throw new Error(t('errorEmptyResult'));
+      await recordAnalysis();
+      const newRemaining = await getRemainingDaily();
+      setRemaining(newRemaining);
       onResult(input, fullText);
     } catch (e) {
       const partial = streamTextRef.current;
@@ -455,43 +463,64 @@ export default function HomeScreen({
           </Text>
         )}
 
-        {/* Canlı akan cevap */}
+        {/* Canli akan cevap */}
         {streamText !== null && (
           <View style={styles.streamBox}>
             <RichText content={streamText} />
-            <Text style={styles.cursor}>▋</Text>
+            <Text style={styles.cursor}>{'\u258B'}</Text>
           </View>
         )}
 
-        {/* Analiz sonrası değerlendirme kartı */}
+        {/* Gunluk kalan analiz hakki */}
+        {!proStatus && remaining !== Infinity && (
+          <View style={styles.remainingBox}>
+            <Text style={styles.remainingText}>
+              {remaining > 0
+                ? `${t('dailyRemaining')}: ${remaining}/${1}`
+                : t('dailyLimitReached')}
+            </Text>
+          </View>
+        )}
+
+        {/* Analiz sonrasi degerlendirme karti */}
         {showRating && <RatingCard onDismiss={onDismissRating} />}
       </ScrollView>
       </KeyboardAvoidingView>
 
-      {/* Üst bar: PRO button + dil bayrağı + ayarlar */}
+      {/* Ust bar: PRO button + dil bayragi + ayarlar */}
       <View style={styles.topBar}>
-        <Animated.View
-          style={{
-            transform: [
-              {
-                scale: bounceAnim.interpolate({
-                  inputRange: [0, 0.5, 1],
-                  outputRange: [0.9, 1.15, 1],
-                }),
-              },
-            ],
-          }}
-        >
+        {proStatus ? (
           <Pressable
-            style={[styles.proBtn, proStatus && styles.proBtnActive]}
+            style={[styles.proBtn, styles.proBtnActive]}
             onPress={() => setUpgradeVisible(true)}
             hitSlop={12}
           >
-            <Text style={[styles.proBtnText, proStatus && styles.proBtnTextActive]}>
-              {proStatus ? '👑 PRO' : '⭐ PRO'}
+            <Text style={[styles.proBtnText, styles.proBtnTextActive]}>
+              {'\u2705 PRO'}
             </Text>
           </Pressable>
-        </Animated.View>
+        ) : (
+          <Animated.View
+            style={{
+              transform: [
+                {
+                  scale: bounceAnim.interpolate({
+                    inputRange: [0, 0.5, 1],
+                    outputRange: [0.9, 1.15, 1],
+                  }),
+                },
+              ],
+            }}
+          >
+            <Pressable
+              style={styles.proBtn}
+              onPress={() => setUpgradeVisible(true)}
+              hitSlop={12}
+            >
+              <Text style={styles.proBtnText}>{'\u2B50 PRO'}</Text>
+            </Pressable>
+          </Animated.View>
+        )}
 
         <Pressable
           style={[styles.iconBtn, openPicker === 'lang' && styles.iconBtnActive]}
@@ -597,6 +626,13 @@ export default function HomeScreen({
         title={promoAlert?.title ?? ''}
         message={promoAlert?.message ?? ''}
         onClose={() => setPromoAlert(null)}
+      />
+
+      {/* Gunluk limit dolmus uyari alerti */}
+      <LimitAlert
+        visible={limitAlertVisible}
+        onClose={() => setLimitAlertVisible(false)}
+        onGoPro={() => setUpgradeVisible(true)}
       />
 
       {/* Crop Screen Overlay */}
@@ -972,6 +1008,20 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   cursor: { color: COLORS.primary, fontWeight: '700', marginTop: 4 },
+  remainingBox: {
+    marginTop: 14,
+    backgroundColor: COLORS.card,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: RADIUS,
+    padding: 14,
+    alignItems: 'center',
+  },
+  remainingText: {
+    color: COLORS.text,
+    fontSize: 13,
+    fontWeight: '600',
+  },
   sheetBackdrop: {
     flex: 1,
     backgroundColor: 'rgba(12,16,28,0.6)',
