@@ -4,8 +4,8 @@
 //
 // Uygulamayi sunucuya baglamak icin BACKEND_URL'i doldurun:
 //   - Yerel test (telefon ayni WiFi'daysa):  http://<PC-LAN-IP>:8000
-//   - Canli (HostBott'ta kurulduktan sonra): https://<domain>
-export const BACKEND_URL = 'http://10.40.25.240:8000';
+//   - Canli (Render.com):                    https://<service>.onrender.com
+export const BACKEND_URL = 'https://fixora-api-ee1z.onrender.com';
 
 export const BACKEND_URL_MISSING =
   !BACKEND_URL || !/^https?:\/\//.test(BACKEND_URL) || BACKEND_URL.includes('PASTE_YOUR');

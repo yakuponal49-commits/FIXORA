@@ -1,0 +1,154 @@
+{
+  "name": "FIXORA - Error Alert System",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "fixora-error",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook",
+      "name": "Error Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [250, 300],
+      "webhookId": "fixora-error-webhook"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.severity }}",
+              "operation": "equals",
+              "value2": "critical"
+            }
+          ]
+        }
+      },
+      "id": "check-severity",
+      "name": "Ciddiyet Kontrol",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [470, 300]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "sendMessage",
+        "chatId": "={{ $env.TELEGRAM_CHAT_ID }}",
+        "text": "🔴 KRİTİK HATA - FIXORA\n\nZaman: {{ $now.format('yyyy-MM-dd HH:mm:ss') }}\nHata: {{ $json.errorType }}\nMesaj: {{ $json.message }}\nKullanıcı: {{ $json.userId || 'Bilinmiyor' }}\n\nLütfen hemen kontrol edin!"
+      },
+      "id": "alert-critical",
+      "name": "Kritik Hata Bildirimi",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [690, 200],
+      "disabled": true,
+      "credentials": {
+        "telegramApi": {
+          "id": "YOUR_TELEGRAM_CREDENTIAL_ID",
+          "name": "Telegram"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "sendMessage",
+        "chatId": "={{ $env.TELEGRAM_CHAT_ID }}",
+        "text": "⚠️ Hata - FIXORA\n\nZaman: {{ $now.format('yyyy-MM-dd HH:mm:ss') }}\nHata: {{ $json.errorType }}\nMesaj: {{ $json.message }}"
+      },
+      "id": "alert-warning",
+      "name": "Uyarı Bildirimi",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [690, 400],
+      "disabled": true,
+      "credentials": {
+        "telegramApi": {
+          "id": "YOUR_TELEGRAM_CREDENTIAL_ID",
+          "name": "Telegram"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"ok\": true } }}",
+        "options": {}
+      },
+      "id": "respond-ok",
+      "name": "Yanıt Gönder",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [910, 300]
+    }
+  ],
+  "connections": {
+    "Error Webhook": {
+      "main": [
+        [
+          {
+            "node": "Ciddiyet Kontrol",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ciddiyet Kontrol": {
+      "main": [
+        [
+          {
+            "node": "Kritik Hata Bildirimi",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Uyarı Bildirimi",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Kritik Hata Bildirimi": {
+      "main": [
+        [
+          {
+            "node": "Yanıt Gönder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Uyarı Bildirimi": {
+      "main": [
+        [
+          {
+            "node": "Yanıt Gönder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "name": "fixora"
+    },
+    {
+      "name": "errors"
+    }
+  ]
+}

@@ -2,10 +2,9 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 
-import { COLORS, RADIUS, SPACING } from '../theme';
+import { COLORS, RADIUS } from '../theme';
 import { Language, SUPPORTED_LANGUAGES } from '../i18n/translations';
 import Logo from '../components/Logo';
-import BackgroundVideo from '../components/BackgroundVideo';
 
 interface Props {
   selected: Language;
@@ -29,10 +28,8 @@ export default function LanguageSelectScreen({ selected, onSelect }: Props) {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <BackgroundVideo source={require('../../assets/videos/v5.mp4')} />
-      <View style={styles.scrim} />
       <View style={styles.content}>
-        <Logo size={64} />
+        <Logo size={140} />
         <Text style={styles.brandName}>{t('appName')}</Text>
         <Text style={styles.title}>{t('langSelectTitle')}</Text>
         <Text style={styles.subtitle}>{t('langSelectSubtitle')}</Text>
@@ -60,9 +57,10 @@ export default function LanguageSelectScreen({ selected, onSelect }: Props) {
   );
 }
 
+const ACCENT = '#5856D6';
+
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: COLORS.background },
-  scrim: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(8,10,18,0.66)' },
+  safe: { flex: 1, backgroundColor: '#FFFFFF' },
   content: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 28 },
   brandName: {
     color: COLORS.text,
@@ -92,11 +90,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
   },
   itemActive: {
-    borderColor: COLORS.primary,
-    backgroundColor: COLORS.chipBg,
+    borderColor: ACCENT,
+    backgroundColor: 'rgba(88, 86, 214, 0.08)',
   },
   flag: { fontSize: 22, marginRight: 14 },
   itemText: { color: COLORS.text, fontWeight: '700', fontSize: 17, flex: 1 },
-  itemTextActive: { color: COLORS.primaryLight },
-  check: { color: COLORS.primaryLight, fontWeight: '900', fontSize: 18 },
+  itemTextActive: { color: ACCENT },
+  check: { color: ACCENT, fontWeight: '900', fontSize: 18 },
 });

@@ -1,0 +1,147 @@
+{
+  "name": "FIXORA - Backend Health Monitor",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 5
+            }
+          ]
+        }
+      },
+      "id": "trigger",
+      "name": "Her 5 Dakikada",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "http://host.docker.internal:8000/health",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "id": "health-check",
+      "name": "Health Check",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [470, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.status }}",
+              "value2": "ok"
+            }
+          ]
+        }
+      },
+      "id": "check-status",
+      "name": "Durum Kontrol",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [690, 300]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "sendMessage",
+        "chatId": "={{ $env.TELEGRAM_CHAT_ID }}",
+        "text": "✅ FIXORA Backend sağlıklı - {{ $now.format('yyyy-MM-dd HH:mm') }}"
+      },
+      "id": "notify-healthy",
+      "name": "Sağlıklı Bildirim",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [910, 200],
+      "disabled": true,
+      "credentials": {
+        "telegramApi": {
+          "id": "YOUR_TELEGRAM_CREDENTIAL_ID",
+          "name": "Telegram"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "sendMessage",
+        "chatId": "={{ $env.TELEGRAM_CHAT_ID }}",
+        "text": "🚨 FIXORA Backend ÇÖKTÜ!\n\nZaman: {{ $now.format('yyyy-MM-dd HH:mm') }}\nHata: Backend sağlık kontrolü başarısız.\nLütfen hemen kontrol edin!"
+      },
+      "id": "notify-down",
+      "name": "Çökme Bildirimi",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [910, 400],
+      "disabled": true,
+      "credentials": {
+        "telegramApi": {
+          "id": "YOUR_TELEGRAM_CREDENTIAL_ID",
+          "name": "Telegram"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Her 5 Dakikada": {
+      "main": [
+        [
+          {
+            "node": "Health Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Health Check": {
+      "main": [
+        [
+          {
+            "node": "Durum Kontrol",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Durum Kontrol": {
+      "main": [
+        [
+          {
+            "node": "Sağlıklı Bildirim",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Çökme Bildirimi",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "name": "fixora"
+    },
+    {
+      "name": "monitoring"
+    }
+  ]
+}

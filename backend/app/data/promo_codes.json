@@ -1,0 +1,25 @@
+{
+  "BW22TH725Z": {
+    "created_at": "2026-08-12T15:41:46.092622",
+    "limit": 25,
+    "used": 1,
+    "used_by": [
+      "2026-08-15T13:58:43.546851"
+    ],
+    "note": "ArkadaÃ…Å¸: Ali"
+  },
+  "DIRU92XUCT": {
+    "created_at": "2026-08-12T15:41:54.958989",
+    "limit": 25,
+    "used": 0,
+    "used_by": [],
+    "note": "Aile: Kiz Kardes"
+  },
+  "OK7XZF945S": {
+    "created_at": "2026-08-12T15:41:55.132828",
+    "limit": 25,
+    "used": 0,
+    "used_by": [],
+    "note": "Aile: Erkek Kardes"
+  }
+}

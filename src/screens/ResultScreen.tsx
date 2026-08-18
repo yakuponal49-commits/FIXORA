@@ -2,7 +2,10 @@ import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Alert,
+  Animated,
+  Easing,
   Image,
+  Keyboard,
   KeyboardAvoidingView,
   Linking,
   Modal,
@@ -19,42 +22,31 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Location from 'expo-location';
 
-import { ChatTurn, continueChatStream, isAuthError, AnalyzeInput } from '../api/client';
+import { ChatTurn, continueChatStream, isAuthError, AnalyzeInput, resolveMaterialIcons } from '../api/client';
 import RichText from '../components/RichText';
 import ThinkingLoader from '../components/ThinkingLoader';
 import { findSubcategory } from '../data/categories';
 import { estimateSavings } from '../utils/savings';
 import { parseQuestionBlock } from '../utils/questionBlock';
-import { RADIUS, SPACING } from '../theme';
+import { parseProfessionBlock, ProfessionBlock } from '../utils/professionBlock';
+import { stripInvisible } from '../utils/invisible';
+import { COLORS, RADIUS, SPACING } from '../theme';
 
-// Açık tema — rakip "RepairBuddy" sonuç ekranı düzenine göre (piksel örneklemesiyle
-// çıkarılan gerçek renkler). Sabit isim CREAM olarak kalıyor ama değerler artık
-// krem değil, ekran görüntülerindeki beyaz/nötr-gri paletle birebir.
-const CREAM = {
-  bg: '#FFFFFF',
-  card: '#FFFFFF',
-  subtle: '#F8F9FB',
-  photoBg: '#F3F4F6',
-  border: '#ECEDF1',
-  text: '#14141F',
-  textMuted: '#6E7180',
-  primary: '#6366F1',
-  success: '#5EC269',
-  successDark: '#3D7E44',
-  warning: '#E5B04B',
-  warnBg: '#FEFDEB',
-  warnIcon: '#F3CE49',
-  danger: '#E5484D',
-  purple: '#4E46DC',
-  purpleBadge: '#6366E9',
-  costBg: '#EAF5EA',
-  costTitle: '#2F5D28',
-  costLabel: '#457B3B',
-  toolChipBg: '#EFF6FE',
-  toolChipText: '#3355B0',
-  pillBg: '#EAFBF0',
-  pillText: '#2E7D46',
-  bulletDot: '#567FDB',
+// Yeni Nesil Tasarım Renkleri (theme.ts ile uyumlu)
+const THEME = {
+  bg: COLORS.background,
+  card: COLORS.card,
+  cardAlt: COLORS.cardAlt,
+  border: COLORS.border,
+  text: COLORS.text,
+  textMuted: COLORS.textMuted,
+  primary: COLORS.primary,
+  primaryLight: COLORS.primaryLight,
+  success: COLORS.success,
+  warning: COLORS.warning,
+  danger: COLORS.danger,
+  neonBlue: COLORS.neonBlue,
+  neonPurple: COLORS.neonPurple,
 };
 
 interface Props {
@@ -121,6 +113,7 @@ function buildShareText(
   original: AnalyzeInput,
   t: (key: string) => string
 ): string {
+  const { clean: shareClean } = parseProfessionBlock(analysis);
   const saved = estimateSavings(analysis);
   const lines: string[] = [`${t('appName')} · ${t('tagline')}`];
   if (original.description?.trim()) {
@@ -129,7 +122,7 @@ function buildShareText(
   if (saved !== null) {
     lines.push(`💰 ${t('saveEstimate')}: ~${Math.round(saved)} €`);
   }
-  lines.push('', analysis.slice(0, 1400));
+  lines.push('', shareClean.slice(0, 1400));
   return lines.join('\n');
 }
 
@@ -245,7 +238,7 @@ function parseSteps(body: string): { summary: string | null; steps: StepItem[]; 
   let pendingField: StepField | null = null;
 
   for (const raw of body.split('\n')) {
-    const line = raw.trim();
+    const line = stripInvisible(raw).trim();
     if (!line) continue;
 
     const stepM = line.match(/^(\d+)[.)]\s+(.*)$/);
@@ -301,25 +294,60 @@ function parseCost(body: string): { diy?: string; pro?: string; save?: string; r
   let pro: string | undefined;
   let save: string | undefined;
   const rest: string[] = [];
-  // Görünmez karakterler (zero-width space, ZWJ/ZWNJ, bidi kontrolleri vb.)
-  // silinir: yalnızca görünmez karakterlerden oluşan satırlar filtrelenir;
-  // aksi halde RichText bunları tam satır yüksekliğinde boş satırlar olarak
-  // çizip kart içinde 100-600px boşluklar oluşturur.
-  const clean = (l: string) =>
-    l.replace(/[\u00AD\u180E\u200B-\u200F\u202A-\u202E\u2060-\u206F\uFE00-\uFE0F\uFEFF]/g, '').trim();
-  for (const raw of body.split('\n')) {
-    const line = clean(raw);
-    if (!line) continue;
-    if (/^[-•*\s]*DIY:/i.test(line)) diy = line.replace(/^[-•*\s]*DIY:\s*/i, '').trim();
-    else if (/^[-•*\s]*Pro:/i.test(line)) pro = line.replace(/^[-•*\s]*Pro:\s*/i, '').trim();
-    else if (/^[-•*\s]*Save:/i.test(line)) save = line.replace(/^[-•*\s]*Save:\s*/i, '').trim();
-    else rest.push(line);
+  const clean = (l: string) => stripInvisible(l).trim();
+
+  // Split by newline and filter out empty or whitespace-only lines
+  const lines = body.split('\n').map(clean).filter(Boolean);
+
+  for (const line of lines) {
+    if (/^[-•*\s]*DIY:/i.test(line)) {
+      diy = line.replace(/^[-•*\s]*DIY:\s*/i, '').trim();
+    } else if (/^[-•*\s]*Pro:/i.test(line)) {
+      pro = line.replace(/^[-•*\s]*Pro:\s*/i, '').trim();
+    } else if (/^[-•*\s]*Save:/i.test(line)) {
+      save = line.replace(/^[-•*\s]*Save:\s*/i, '').trim();
+    } else {
+      rest.push(line);
+    }
   }
   return { diy, pro, save, rest };
 }
 
+/** Kartların yumuşakça ekrana girmesini sağlayan animasyon bileşeni. */
+function FadeInView({ children, delay = 0 }: { children: React.ReactNode; delay?: number }) {
+  const anim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.timing(anim, {
+      toValue: 1,
+      duration: 500,
+      delay,
+      easing: Easing.out(Easing.back(1.2)),
+      useNativeDriver: true,
+    }).start();
+  }, [anim, delay]);
+
+  return (
+    <Animated.View
+      style={{
+        opacity: anim,
+        transform: [
+          {
+            translateY: anim.interpolate({
+              inputRange: [0, 1],
+              outputRange: [25, 0],
+            }),
+          },
+        ],
+      }}
+    >
+      {children}
+    </Animated.View>
+  );
+}
+
 function RiskPill({ level }: { level: string }) {
-  const color = level === 'HIGH' ? CREAM.danger : level === 'MEDIUM' ? CREAM.warning : CREAM.success;
+  const color = level === 'HIGH' ? THEME.danger : level === 'MEDIUM' ? THEME.warning : THEME.success;
   const labelMap: Record<string, string> = { HIGH: '⛔ HIGH', MEDIUM: '⚠ MEDIUM', LOW: '✓ LOW' };
   return (
     <View style={[styles.riskPill, { backgroundColor: `${color}22`, borderColor: color }]}>
@@ -332,9 +360,9 @@ function RiskPill({ level }: { level: string }) {
 function ConfidencePill({ level }: { level: 'HIGH' | 'MEDIUM' | 'LOW' }) {
   const { t } = useTranslation();
   const map = {
-    HIGH: { label: t('confidenceHigh'), bg: CREAM.pillBg, color: CREAM.pillText },
+    HIGH: { label: t('confidenceHigh'), bg: '#EAFBF0', color: '#2E7D46' },
     MEDIUM: { label: t('confidenceMedium'), bg: '#FDF3DC', color: '#8A6A00' },
-    LOW: { label: t('confidenceLow'), bg: '#FDE2E3', color: CREAM.danger },
+    LOW: { label: t('confidenceLow'), bg: '#FDE2E3', color: THEME.danger },
   } as const;
   const conf = map[level];
   return (
@@ -351,7 +379,7 @@ function AccuracyCard({ section }: { section: Section }) {
     : section.body;
   return (
     <View style={[styles.sectionCard, styles.plainCard]}>
-      <Text style={styles.sectionHeading}>{section.heading}</Text>
+      <Text selectable style={styles.sectionHeading}>{section.heading}</Text>
       <View style={styles.accuracyRow}>
         {confidence && (
           <View style={styles.accuracyPillCol}>
@@ -359,7 +387,7 @@ function AccuracyCard({ section }: { section: Section }) {
           </View>
         )}
         <View style={styles.accuracyTextCol}>
-          <RichText content={body} color={CREAM.text} />
+          <RichText content={body} color={THEME.text} />
         </View>
       </View>
     </View>
@@ -373,9 +401,9 @@ function SafetyCard({ section }: { section: Section }) {
     : section.body;
   return (
     <View style={[styles.sectionCard, styles.plainCard]}>
-      <Text style={styles.sectionHeading}>{section.heading}</Text>
+      <Text selectable style={styles.sectionHeading}>{section.heading}</Text>
       {risk && <RiskPill level={risk} />}
-      <RichText content={body} color={CREAM.text} />
+      <RichText content={body} color={THEME.text} />
     </View>
   );
 }
@@ -387,12 +415,16 @@ function inlineParts(text: string): React.ReactNode {
     const bold = part.match(/^\*\*([^*]+)\*\*$/);
     if (bold) {
       return (
-        <Text key={i} style={styles.inlineBold}>
+        <Text key={i} selectable style={styles.inlineBold}>
           {bold[1]}
         </Text>
       );
     }
-    return <Text key={i}>{part}</Text>;
+    return (
+      <Text key={i} selectable>
+        {part}
+      </Text>
+    );
   });
 }
 
@@ -401,8 +433,8 @@ function StepField({ label, value }: { label: string; value?: string }) {
   if (!value) return null;
   return (
     <View style={styles.stepFieldRow}>
-      <Text style={styles.stepFieldLabel}>{label}</Text>
-      <Text style={styles.stepFieldValue}>{inlineParts(value)}</Text>
+      <Text selectable style={styles.stepFieldLabel}>{label}</Text>
+      <Text selectable style={styles.stepFieldValue}>{inlineParts(value)}</Text>
     </View>
   );
 }
@@ -412,26 +444,26 @@ function StepsCard({ section }: { section: Section }) {
   const { summary, steps, rest } = parseSteps(section.body);
   return (
     <View style={[styles.sectionCard, styles.plainCard]}>
-      <Text style={styles.sectionHeading}>{section.heading}</Text>
+      <Text selectable style={styles.sectionHeading}>{section.heading}</Text>
       {summary && (
         <View style={styles.stepsSummaryBox}>
-          <Text style={styles.stepsSummaryLabel}>Problem</Text>
-          <Text style={styles.stepsSummary}>{inlineParts(summary)}</Text>
+          <Text selectable style={styles.stepsSummaryLabel}>Problem</Text>
+          <Text selectable style={styles.stepsSummary}>{inlineParts(summary)}</Text>
         </View>
       )}
-      {rest.length > 0 && <RichText content={rest.join('\n')} color={CREAM.text} />}
+      {rest.length > 0 && <RichText content={rest.join('\n')} color={THEME.text} />}
       {steps.map((s, idx) => (
         <View key={s.n} style={[styles.stepBlock, idx < steps.length - 1 && styles.stepBlockDivider]}>
           <View style={styles.stepRow}>
-            <View style={styles.stepCircle}>
-              <Text style={styles.stepCircleText}>{s.n}</Text>
+            <View style={[styles.stepCircle, { backgroundColor: THEME.neonBlue }]}>
+              <Text selectable style={styles.stepCircleText}>{s.n}</Text>
             </View>
-            <Text style={styles.stepText}>{inlineParts(s.title)}</Text>
+            <Text selectable style={styles.stepText}>{inlineParts(s.title)}</Text>
           </View>
 
           {s.desc.length > 0 && (
             <View style={styles.stepDescWrap}>
-              <RichText content={s.desc.join('\n')} color={CREAM.text} />
+              <RichText content={s.desc.join('\n')} color={THEME.text} />
             </View>
           )}
 
@@ -439,11 +471,11 @@ function StepsCard({ section }: { section: Section }) {
 
           {s.tools && s.tools.length > 0 && (
             <View style={styles.stepFieldRow}>
-              <Text style={styles.stepFieldLabel}>{t('stepToolsLabel')}</Text>
+              <Text selectable style={styles.stepFieldLabel}>{t('stepToolsLabel')}</Text>
               <View style={styles.toolChipRow}>
                 {s.tools.map((tool, i) => (
-                  <View key={i} style={styles.toolChip}>
-                    <Text style={styles.toolChipText}>{tool}</Text>
+                  <View key={i} style={[styles.toolChip, { backgroundColor: 'rgba(56, 189, 248, 0.15)' }]}>
+                    <Text style={[styles.toolChipText, { color: THEME.neonBlue }]}>{tool}</Text>
                   </View>
                 ))}
               </View>
@@ -457,13 +489,13 @@ function StepsCard({ section }: { section: Section }) {
           {(s.difficulty || s.duration) && (
             <View style={styles.stepMetaRow}>
               {s.difficulty && (
-                <View style={styles.metaPill}>
-                  <Text style={styles.metaPillText}>{t('stepDifficultyLabel')}: {s.difficulty}</Text>
+                <View style={[styles.metaPill, { backgroundColor: 'rgba(16, 185, 129, 0.15)' }]}>
+                  <Text style={[styles.metaPillText, { color: THEME.success }]}>{t('stepDifficultyLabel')}: {s.difficulty}</Text>
                 </View>
               )}
               {s.duration && (
-                <View style={styles.metaPill}>
-                  <Text style={styles.metaPillText}>{t('stepDurationLabel')}: {s.duration}</Text>
+                <View style={[styles.metaPill, { backgroundColor: 'rgba(192, 132, 252, 0.15)' }]}>
+                  <Text style={[styles.metaPillText, { color: THEME.neonPurple }]}>{t('stepDurationLabel')}: {s.duration}</Text>
                 </View>
               )}
             </View>
@@ -477,43 +509,37 @@ function StepsCard({ section }: { section: Section }) {
 function CostCard({ section }: { section: Section }) {
   const { t } = useTranslation();
   const { diy, pro, save, rest } = parseCost(section.body);
-  if (__DEV__) {
-    console.log('[COSTCARD] heading=', JSON.stringify(section.heading));
-    console.log('[COSTCARD] body=', JSON.stringify(section.body));
-    console.log('[COSTCARD] diy=', JSON.stringify(diy), 'pro=', JSON.stringify(pro), 'save=', JSON.stringify(save));
-    console.log('[COSTCARD] rest=', JSON.stringify(rest));
-  }
   return (
     <View style={[styles.sectionCard, styles.costCard]}>
-      <Text style={styles.costTitle}>{section.heading}</Text>
-      {rest.length > 0 && <RichText content={rest.join('\n')} color={CREAM.text} />}
+      <Text selectable style={styles.costTitle}>{section.heading}</Text>
+      {rest.length > 0 && <RichText content={rest.join('\n')} color={THEME.text} />}
       {(diy || pro) && (
         <View>
           {pro && (
             <View style={styles.costRow}>
-              <Text style={styles.costRowLabel}>{t('costPro')}</Text>
-              <Text style={styles.costRowValue}>{pro}</Text>
+              <Text selectable style={styles.costRowLabel}>{t('costPro')}</Text>
+              <Text selectable style={styles.costRowValue}>{pro}</Text>
             </View>
           )}
           {diy && (
             <View style={styles.costRow}>
-              <Text style={styles.costRowLabel}>{t('costDiy')}</Text>
-              <Text style={styles.costRowValue}>{diy}</Text>
+              <Text selectable style={styles.costRowLabel}>{t('costDiy')}</Text>
+              <Text selectable style={styles.costRowValue}>{diy}</Text>
             </View>
           )}
         </View>
       )}
       {save && (
         <View style={[styles.costRow, styles.costRowSave]}>
-          <Text style={styles.costSaveLabel}>{t('costSave')}</Text>
-          <Text style={styles.costSaveValue}>{save}</Text>
+          <Text selectable style={styles.costSaveLabel}>{t('costSave')}</Text>
+          <Text selectable style={styles.costSaveValue}>{save}</Text>
         </View>
       )}
       <View style={styles.costEco}>
-        <Text style={styles.costEcoIcon}>🌳</Text>
-        <Text style={styles.costEcoText}>{t('costEco')}</Text>
+        <Text selectable style={styles.costEcoIcon}>🌳</Text>
+        <Text selectable style={styles.costEcoText}>{t('costEco')}</Text>
       </View>
-      {rest.length === 0 && <Text style={styles.costNote}>{t('costNote')}</Text>}
+      {rest.length === 0 && <Text selectable style={styles.costNote}>{t('costNote')}</Text>}
     </View>
   );
 }
@@ -523,19 +549,23 @@ function CostCard({ section }: { section: Section }) {
 function BaseCard({ section }: { section: Section }) {
   return (
     <View style={[styles.sectionCard, styles.plainCard]}>
-      {section.heading ? <Text style={styles.sectionHeading}>{section.heading}</Text> : null}
-      <RichText content={section.body} color={CREAM.text} />
+      {section.heading ? <Text selectable style={styles.sectionHeading}>{section.heading}</Text> : null}
+      <RichText content={section.body} color={THEME.text} />
     </View>
   );
 }
 
-function SectionCard({ section }: { section: Section }) {
-  if (isAccuracyHeading(section.heading)) return <AccuracyCard section={section} />;
-  const kind = sectionKind(section.heading);
-  if (kind === 'safety') return <SafetyCard section={section} />;
-  if (kind === 'steps') return <StepsCard section={section} />;
-  if (kind === 'cost') return <CostCard section={section} />;
-  return <BaseCard section={section} />;
+function SectionCard({ section, index }: { section: Section; index: number }) {
+  const content = (() => {
+    if (isAccuracyHeading(section.heading)) return <AccuracyCard section={section} />;
+    const kind = sectionKind(section.heading);
+    if (kind === 'safety') return <SafetyCard section={section} />;
+    if (kind === 'steps') return <StepsCard section={section} />;
+    if (kind === 'cost') return <CostCard section={section} />;
+    return <BaseCard section={section} />;
+  })();
+
+  return <FadeInView delay={index * 150}>{content}</FadeInView>;
 }
 
 /** YENİ: "Önce güvenlik" — rakip ekranındaki sarı uyarı kartı. Ayrı bir backend
@@ -554,29 +584,82 @@ function firstSafetyLine(sections: Section[]): string | null {
 
 function SafetyFirstCallout({ text }: { text: string }) {
   const { t } = useTranslation();
+  const pulse = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, { toValue: 1, duration: 1000, useNativeDriver: false }),
+        Animated.timing(pulse, { toValue: 0, duration: 1000, useNativeDriver: false }),
+      ])
+    ).start();
+  }, [pulse]);
+
+  const borderColor = pulse.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['rgba(245, 158, 11, 0.2)', 'rgba(245, 158, 11, 0.8)'],
+  });
+
   return (
-    <View style={styles.safetyFirstCard}>
-      <View style={styles.safetyFirstIcon}>
+    <Animated.View style={[styles.safetyFirstCard, { borderColor, borderWidth: 2 }]}>
+      <View style={[styles.safetyFirstIcon, { backgroundColor: THEME.warning }]}>
         <Text style={styles.safetyFirstIconText}>!</Text>
       </View>
       <View style={{ flex: 1 }}>
-        <Text style={styles.safetyFirstTitle}>{t('safetyFirstLabel')}</Text>
-        <Text style={styles.safetyFirstText}>{text}</Text>
+        <Text selectable style={styles.safetyFirstTitle}>{t('safetyFirstLabel')}</Text>
+        <Text selectable style={styles.safetyFirstText}>{text}</Text>
       </View>
-    </View>
+    </Animated.View>
   );
 }
 
 /** "Bu tamiri kendin yapabilir misin?" karti. Her AI cevabinin altinda birer tane olur. (DEĞİŞMEDİ) */
-function CanFixCard({ language, original }: { language: string; original: AnalyzeInput }) {
+function CanFixCard({
+  language,
+  original,
+  prof,
+}: {
+  language: string;
+  original: AnalyzeInput;
+  prof?: ProfessionBlock | null;
+}) {
   const { t } = useTranslation();
   const [choice, setChoice] = useState<boolean | null>(null);
   const [locating, setLocating] = useState(false);
+  const [icons, setIcons] = useState<string[]>([]);
 
   const category = original.category;
   const sub = findSubcategory(category, original.subcategory);
   const subLabel = sub ? t(sub.key) : '';
   const targeted = (base: string) => [base, subLabel, serviceWord(language)].filter(Boolean).join(' ');
+
+  const supplyList =
+    prof?.materials?.length && prof.materials.length > 0
+      ? prof.materials
+      : [suppliesForCategory(category, language)];
+
+  useEffect(() => {
+    if (choice !== true) {
+      setIcons([]);
+      return;
+    }
+    let alive = true;
+    resolveMaterialIcons(supplyList, language).then((list) => {
+      if (alive) setIcons(list);
+    });
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [choice]);
+
+  /** AI'nin tespit ettigi uzmanlik varsa onu, yoksa kategoriden turetilen sorguyu kullanir. */
+  const proQuery = prof?.profession
+    ? [prof.profession, ...(prof.services ?? [])].filter(Boolean).join(' ')
+    : targeted(professionForCategory(category, language));
+  const supplyQuery = prof?.materials?.length
+    ? prof.materials.join(' ')
+    : targeted(suppliesForCategory(category, language));
 
   const openLocal = async (query: string) => {
     if (locating) return;
@@ -645,43 +728,120 @@ function CanFixCard({ language, original }: { language: string; original: Analyz
         <View style={styles.questionBox}>
           <Text style={styles.questionTitle}>{t('selfRepair')}</Text>
           <Text style={styles.questionHint}>{t('selfRepairHint')}</Text>
-          <View style={styles.yesNoRow}>
-            <Pressable style={[styles.yesNoBtn, styles.yesBtn]} onPress={() => setChoice(true)}>
-              <Text style={styles.yesNoText}>{t('yesIcan')}</Text>
+          <View style={styles.yesNoWrap}>
+            <View style={styles.yesNoRow}>
+              <Pressable style={[styles.yesNoBtn, styles.yesBtn]} onPress={() => setChoice(true)}>
+                <Text style={styles.yesNoText}>{t('yesIcan')}</Text>
+              </Pressable>
+              <Pressable style={[styles.yesNoBtn, styles.noBtn]} onPress={() => setChoice(false)}>
+                <Text style={styles.yesNoText}>{t('noIcant')}</Text>
+              </Pressable>
+            </View>
+            <View style={styles.yesNoHintRow}>
               <Text style={styles.yesNoHint}>({t('yesIcanHint')})</Text>
-            </Pressable>
-            <Pressable style={[styles.yesNoBtn, styles.noBtn]} onPress={() => setChoice(false)}>
-              <Text style={styles.yesNoText}>{t('noIcant')}</Text>
               <Text style={styles.yesNoHint}>({t('noIcantHint')})</Text>
-            </Pressable>
+            </View>
           </View>
         </View>
       )}
-      {choice === true && (
-        <View style={styles.answerBox}>
-          <Text style={styles.answerText}>{t('diyPath')}</Text>
-          <Pressable
-            style={styles.mapBtn}
-            onPress={() => openLocal(targeted(suppliesForCategory(category, language)))}
-            disabled={locating}
-          >
-            <Text style={styles.mapBtnText}>{locating ? t('analyzing') : t('canRepair')}</Text>
-          </Pressable>
+
+      <Modal
+        transparent
+        visible={choice !== null}
+        animationType="fade"
+        onRequestClose={() => setChoice(null)}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalIconCircle}>
+              <Text style={styles.modalIcon}>{choice ? '🛠️' : '👷'}</Text>
+            </View>
+            <Text style={styles.diyModalTitle}>{choice ? t('diyPath') : t('proPath')}</Text>
+
+            {choice ? (
+              <>
+                <Text style={styles.diyModalLabel}>{t('materialsListTitle')}</Text>
+                <View style={styles.materialsBox}>
+                  {supplyList.map((item, idx) => (
+                    <View key={idx} style={styles.materialRow}>
+                      <View style={styles.materialIconBadge}>
+                        <Text style={styles.materialIcon}>{icons[idx] ?? '🧰'}</Text>
+                      </View>
+                      <Text style={styles.materialText}>{item}</Text>
+                    </View>
+                  ))}
+                </View>
+                <Text style={styles.diyModalAsk}>{t('diyFindAsk')}</Text>
+              </>
+            ) : (
+              <Text style={styles.diyModalAsk}>{t('proFindAsk')}</Text>
+            )}
+
+            <Pressable
+              style={styles.mapBtn}
+              onPress={() => openLocal(choice ? supplyQuery : proQuery)}
+              disabled={locating}
+            >
+              <Text style={styles.mapBtnText}>
+                {locating ? t('analyzing') : choice ? t('canRepair') : t('findPro')}
+              </Text>
+            </Pressable>
+            <Pressable style={styles.diyModalBackBtn} onPress={() => setChoice(null)}>
+              <Text style={styles.diyModalBackBtnText}>{t('back')}</Text>
+            </Pressable>
+          </View>
         </View>
-      )}
-      {choice === false && (
-        <View style={styles.answerBox}>
-          <Text style={styles.answerText}>{t('proPath')}</Text>
-          <Pressable
-            style={styles.mapBtn}
-            onPress={() => openLocal(targeted(professionForCategory(category, language)))}
-            disabled={locating}
-          >
-            <Text style={styles.mapBtnText}>{locating ? t('analyzing') : t('findPro')}</Text>
-          </Pressable>
-        </View>
-      )}
+      </Modal>
     </View>
+  );
+}
+
+/** "Yardımcı olabildim mi? Değilse AI ile soru-cevap yapabilirsiniz." — en altta,
+ *  yerinde yavaşça sallanan (wobble) dinamik buton. Tıklanınca sohbet girişine
+ *  odaklanır ve kullanıcı AI ile soru-cevap sohbetine devam eder. */
+function QnaButton({ label, onPress }: { label: string; onPress: () => void }) {
+  const wobble = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(wobble, {
+          toValue: 1,
+          duration: 450,
+          easing: Easing.inOut(Easing.quad),
+          useNativeDriver: true,
+        }),
+        Animated.timing(wobble, {
+          toValue: -1,
+          duration: 450,
+          easing: Easing.inOut(Easing.quad),
+          useNativeDriver: true,
+        }),
+        Animated.timing(wobble, {
+          toValue: 0,
+          duration: 300,
+          easing: Easing.inOut(Easing.quad),
+          useNativeDriver: true,
+        }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [wobble]);
+
+  const rotate = wobble.interpolate({
+    inputRange: [-1, 1],
+    outputRange: ['-2deg', '2deg'],
+  });
+
+  return (
+    <Animated.View style={{ transform: [{ rotate }] }}>
+      <Pressable style={styles.qnaBtn} onPress={onPress}>
+        <Text style={styles.qnaBtnIcon}>🤖</Text>
+        <Text style={styles.qnaBtnText}>{label}</Text>
+        <Text style={styles.qnaBtnArrow}>💬</Text>
+      </Pressable>
+    </Animated.View>
   );
 }
 
@@ -689,11 +849,13 @@ export default function ResultScreen({ analysis, language, modelId, original, on
   const { t } = useTranslation();
   const [turns, setTurns] = useState<ChatTurn[]>([]);
   const [message, setMessage] = useState('');
+  const [modalText, setModalText] = useState('');
+  const [kbHeight, setKbHeight] = useState(0);
   const [loading, setLoading] = useState(false);
   const [streamText, setStreamText] = useState<string | null>(null);
   const [retry, setRetry] = useState<{ next: ChatTurn[] } | null>(null);
-  const [markedDone, setMarkedDone] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
+  const inputRef = useRef<TextInput>(null);
   const didInit = useRef(false);
   const scrolledTurns = useRef(0);
   const streamTextRef = useRef<string | null>(null);
@@ -704,6 +866,15 @@ export default function ResultScreen({ analysis, language, modelId, original, on
       requestAnimationFrame(() => scrollRef.current?.scrollToEnd({ animated: false }));
     }
   }, [streamText]);
+
+  useEffect(() => {
+    const showSub = Keyboard.addListener('keyboardDidShow', (e) => setKbHeight(e.endCoordinates.height));
+    const hideSub = Keyboard.addListener('keyboardDidHide', () => setKbHeight(0));
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
 
   useEffect(() => {
     if (!didInit.current) {
@@ -754,6 +925,7 @@ export default function ResultScreen({ analysis, language, modelId, original, on
     const text = (override ?? message).trim();
     if (!text || loading) return;
     setMessage('');
+    setModalText('');
     dismissQ.current = null;
     const next: ChatTurn[] = [...turns, { role: 'user', text }];
     setTurns(next);
@@ -771,20 +943,28 @@ export default function ResultScreen({ analysis, language, modelId, original, on
     runStream(next);
   };
 
+  /** En alttaki "AI soru-cevap" butonu: sohbete odaklanır ve klavyeyi açar. */
+  const startQna = () => {
+    if (loading) return;
+    requestAnimationFrame(() => scrollRef.current?.scrollToEnd({ animated: true }));
+    setTimeout(() => inputRef.current?.focus(), 300);
+  };
+
   const share = () => {
     Share.share({ message: buildShareText(analysis, original, t) }).catch(() => {});
   };
 
   /** Bir AI metnini soru blogu + bolum kartlari halinde cizer. Sorular modal olarak gelir. */
   const renderContent = (raw: string) => {
-    const { clean } = parseQuestionBlock(raw);
+    const { clean: qClean } = parseQuestionBlock(raw);
+    const { clean } = parseProfessionBlock(qClean);
     const sections = parseSections(clean);
     const safetyFirst = firstSafetyLine(sections);
     return (
       <>
         {safetyFirst && <SafetyFirstCallout text={safetyFirst} />}
         {sections.map((s, i) => (
-          <SectionCard key={i} section={s} />
+          <SectionCard key={i} section={s} index={i} />
         ))}
       </>
     );
@@ -803,6 +983,7 @@ export default function ResultScreen({ analysis, language, modelId, original, on
   const lastIsAssistant = turns.length === 0 || turns[turns.length - 1].role === 'assistant';
   const showModal = !loading && pendingQ !== null && lastIsAssistant && dismissQ.current !== pendingQ;
   const showCanFix = !loading && pendingQ === null;
+  const prof = parseProfessionBlock(lastAssistantText);
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -883,14 +1064,14 @@ export default function ResultScreen({ analysis, language, modelId, original, on
                 </View>
               </View>
               {original.description?.trim() ? (
-                <Text style={styles.summaryText}>{original.description.trim()}</Text>
+                <Text selectable style={styles.summaryText}>{original.description.trim()}</Text>
               ) : null}
               {turns
                 .filter((u) => u.role === 'user')
                 .map((u, i) => (
                   <View key={i} style={styles.summaryAnswerRow}>
-                    <Text style={styles.summaryAnswerBullet}>✓</Text>
-                    <Text style={styles.summaryAnswer}>{u.text}</Text>
+                    <Text selectable style={styles.summaryAnswerBullet}>✓</Text>
+                    <Text selectable style={styles.summaryAnswer}>{u.text}</Text>
                   </View>
                 ))}
             </View>
@@ -901,7 +1082,7 @@ export default function ResultScreen({ analysis, language, modelId, original, on
           {turns.map((turn, i) =>
             turn.role === 'user' ? (
               <View key={i} style={[styles.messageBubble, styles.userBubble]}>
-                <Text style={styles.userText}>{turn.text}</Text>
+                <Text selectable style={styles.userText}>{turn.text}</Text>
               </View>
             ) : (
               <View
@@ -919,33 +1100,15 @@ export default function ResultScreen({ analysis, language, modelId, original, on
             )
           )}
 
-          {showCanFix && <CanFixCard language={language} original={original} />}
-
-          {markedDone && (
-            <View style={styles.doneTag}>
-              <Text style={styles.doneTagText}>✓ {t('completed')}</Text>
-            </View>
-          )}
-          <View style={styles.footerBtns}>
-            <Pressable style={[styles.footerBtn, styles.footerBtnNew]} onPress={onBack}>
-              <Text style={styles.footerBtnIcon}>＋</Text>
-              <Text style={styles.footerBtnNewText}>{t('newAnalysis')}</Text>
-            </Pressable>
-            <Pressable
-              style={[styles.footerBtn, styles.footerBtnDone, markedDone && styles.footerBtnDoneInactive]}
-              onPress={() => setMarkedDone(true)}
-              disabled={markedDone}
-            >
-              <Text style={styles.footerBtnIcon}>✓</Text>
-              <Text style={styles.footerBtnDoneText}>{t('markComplete')}</Text>
-            </Pressable>
-          </View>
+          {showCanFix && <CanFixCard language={language} original={original} prof={prof} />}
 
           {streamText !== null && streamText.trim() !== '' && (
-            <View style={styles.messageBubble}>
-              <RichText content={streamText} color={CREAM.text} />
-              <Text style={styles.cursor}>▋</Text>
-            </View>
+            <FadeInView>
+              <View style={styles.messageBubble}>
+                <RichText content={streamText} color={THEME.text} />
+                <Text style={styles.cursor}>▋</Text>
+              </View>
+            </FadeInView>
           )}
 
           {loading && (streamText === null || streamText.trim() === '') && (
@@ -960,15 +1123,19 @@ export default function ResultScreen({ analysis, language, modelId, original, on
               </Pressable>
             </View>
           )}
+
+          {/* En altta: "yardımcı olabildim mi?" titreyen AI soru-cevap butonu */}
+          <QnaButton label={t('qnaCta')} onPress={startQna} />
         </ScrollView>
 
         <View style={styles.inputBar}>
           <TextInput
+            ref={inputRef}
             style={styles.input}
             value={message}
             onChangeText={setMessage}
             placeholder={t('describePlaceholder')}
-            placeholderTextColor={CREAM.textMuted}
+            placeholderTextColor={THEME.textMuted}
             editable={!loading}
           />
           <Pressable style={[styles.sendBtn, loading && styles.disabled]} onPress={() => send()} disabled={loading}>
@@ -986,15 +1153,23 @@ export default function ResultScreen({ analysis, language, modelId, original, on
           if (pendingQ) dismissQ.current = pendingQ;
         }}
       >
-        <View style={styles.modalBackdrop}>
+        <View
+          style={[
+            styles.modalBackdrop,
+            kbHeight > 0 && {
+              justifyContent: 'flex-end',
+              paddingBottom: kbHeight + 12,
+            },
+          ]}
+        >
           <View style={styles.modalCard}>
             <View style={styles.modalIconCircle}>
               <Text style={styles.modalIcon}>❓</Text>
             </View>
             <View style={styles.modalNotice}>
-              <Text style={styles.modalNoticeText}>{t('answerQuestions')}</Text>
+              <Text selectable style={styles.modalNoticeText}>{t('answerQuestions')}</Text>
             </View>
-            <Text style={styles.modalQuestion}>{pendingQ ?? ''}</Text>
+            <Text selectable style={styles.modalQuestion}>{pendingQ ?? ''}</Text>
             {(lastParsed.options ?? []).map((opt, idx) => (
               <Pressable
                 key={idx}
@@ -1002,17 +1177,37 @@ export default function ResultScreen({ analysis, language, modelId, original, on
                 onPress={() => send(opt)}
                 disabled={loading}
               >
-                <Text style={styles.modalOptionText}>{opt}</Text>
+                <Text selectable style={styles.modalOptionText}>{opt}</Text>
               </Pressable>
             ))}
-            <Pressable
-              style={styles.modalOwn}
-              onPress={() => {
-                if (pendingQ) dismissQ.current = pendingQ;
-              }}
-            >
-              <Text style={styles.modalOwnText}>{t('orTypeOwn')}</Text>
-            </Pressable>
+            <View style={styles.modalOwnInputWrap}>
+              <Text style={styles.modalOwnLabel}>{t('orTypeOwn')}</Text>
+              <View style={styles.modalInputRow}>
+                <TextInput
+                  style={styles.modalInput}
+                  value={modalText}
+                  onChangeText={setModalText}
+                  placeholder={t('describePlaceholder')}
+                  placeholderTextColor={THEME.textMuted}
+                  multiline
+                  editable={!loading}
+                  onSubmitEditing={() => {
+                    const text = modalText.trim();
+                    if (text) send(text);
+                  }}
+                />
+                <Pressable
+                  style={[styles.modalSendBtn, (!modalText.trim() || loading) && styles.modalSendBtnDisabled]}
+                  onPress={() => {
+                    const text = modalText.trim();
+                    if (text && !loading) send(text);
+                  }}
+                  disabled={loading || !modalText.trim()}
+                >
+                  <Text style={styles.modalSendBtnText}>➤</Text>
+                </Pressable>
+              </View>
+            </View>
           </View>
         </View>
       </Modal>
@@ -1022,29 +1217,31 @@ export default function ResultScreen({ analysis, language, modelId, original, on
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
-  safe: { flex: 1, backgroundColor: CREAM.bg },
+  safe: { flex: 1, backgroundColor: THEME.bg },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: SPACING,
     paddingTop: 8,
     paddingBottom: 8,
-    backgroundColor: CREAM.card,
+    backgroundColor: THEME.card,
     borderBottomWidth: 1,
-    borderBottomColor: CREAM.border,
+    borderBottomColor: THEME.border,
   },
   backBtn: { paddingRight: 12 },
-  backBtnText: { color: CREAM.primary, fontWeight: '700', fontSize: 15 },
-  title: { fontSize: 18, fontWeight: '800', color: CREAM.text, flex: 1 },
-  container: { padding: SPACING, paddingBottom: 24 },
+  backBtnText: { color: THEME.neonBlue, fontWeight: '700', fontSize: 15 },
+  title: { fontSize: 18, fontWeight: '800', color: THEME.text, flex: 1 },
+  container: { padding: SPACING, paddingBottom: 40 },
 
-  // "Analiz tamamlandı" bandı — koyu yeşil dolu banner (rb 123525)
+  // "Analiz tamamlandı" bandı — siber yeşil dolgu
   doneBanner: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    backgroundColor: CREAM.successDark,
+    backgroundColor: 'rgba(16, 185, 129, 0.15)',
     borderRadius: RADIUS,
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.4)',
     paddingVertical: 16,
     paddingHorizontal: 16,
     marginBottom: 12,
@@ -1053,14 +1250,14 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 12,
-    backgroundColor: CREAM.success,
+    backgroundColor: THEME.success,
     alignItems: 'center',
     justifyContent: 'center',
   },
   doneIcon: { color: '#fff', fontSize: 18, fontWeight: '900' },
   doneTextWrap: { flex: 1 },
-  doneTitle: { color: '#fff', fontSize: 16, fontWeight: '800' },
-  doneSub: { color: 'rgba(255,255,255,0.85)', fontSize: 12, marginTop: 3, lineHeight: 17 },
+  doneTitle: { color: THEME.success, fontSize: 16, fontWeight: '800' },
+  doneSub: { color: THEME.textMuted, fontSize: 12, marginTop: 3, lineHeight: 17 },
 
   // Tasarruf bandı + paylaş
   savingsBanner: {
@@ -1068,121 +1265,157 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: CREAM.costBg,
+    backgroundColor: 'rgba(16, 185, 129, 0.1)',
     borderRadius: RADIUS,
     paddingVertical: 12,
     paddingHorizontal: 14,
     marginBottom: 10,
   },
-  savingsText: { color: CREAM.costTitle, fontSize: 15, fontWeight: '900' },
+  savingsText: { color: THEME.success, fontSize: 15, fontWeight: '900' },
   shareBtn: {
-    backgroundColor: CREAM.subtle,
+    backgroundColor: THEME.cardAlt,
     borderRadius: RADIUS,
     paddingVertical: 12,
     paddingHorizontal: 14,
     alignItems: 'center',
     marginBottom: 12,
+    borderWidth: 1,
+    borderColor: THEME.border,
   },
-  shareBtnText: { color: CREAM.primary, fontSize: 14, fontWeight: '800' },
+  shareBtnText: { color: THEME.neonBlue, fontSize: 14, fontWeight: '800' },
 
   // Retry bandı
   retryBox: {
-    backgroundColor: '#FDF3DC',
+    backgroundColor: 'rgba(245, 158, 11, 0.1)',
     borderWidth: 1,
-    borderColor: CREAM.warning,
+    borderColor: THEME.warning,
     borderRadius: RADIUS,
     padding: 14,
     alignItems: 'center',
     marginBottom: 10,
   },
-  retryText: { color: CREAM.warning, fontSize: 13, fontWeight: '700', textAlign: 'center' },
+  retryText: { color: THEME.warning, fontSize: 13, fontWeight: '700', textAlign: 'center' },
   retryBtn: {
     marginTop: 10,
-    backgroundColor: CREAM.warning,
+    backgroundColor: THEME.warning,
     borderRadius: 12,
     paddingVertical: 10,
     paddingHorizontal: 20,
   },
   retryBtnText: { color: '#1A1A2E', fontWeight: '900', fontSize: 13 },
 
+  // En alttaki "AI soru-cevap" titreyen buton
+  qnaBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    backgroundColor: THEME.primary,
+    borderRadius: RADIUS,
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    marginTop: 12,
+    marginBottom: 4,
+    shadowColor: THEME.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 6,
+  },
+  qnaBtnIcon: { fontSize: 20 },
+  qnaBtnArrow: { fontSize: 16 },
+  qnaBtnText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '800',
+    textAlign: 'center',
+    lineHeight: 20,
+    flexShrink: 1,
+  },
+
   // Fotoğrafınız
-  photoHeading: { fontSize: 17, fontWeight: '800', color: CREAM.text, marginBottom: 10 },
+  photoHeading: { fontSize: 17, fontWeight: '800', color: THEME.text, marginBottom: 10 },
   photoCard: {
-    backgroundColor: CREAM.photoBg,
+    backgroundColor: THEME.card,
     borderRadius: RADIUS,
     padding: 14,
     marginBottom: 12,
+    borderWidth: 1,
+    borderColor: THEME.border,
   },
   photoGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, justifyContent: 'center' },
   photoWrap: { width: 100, height: 100, borderRadius: 14, overflow: 'hidden' },
   photoWrapSingle: { width: '92%', height: 260 },
   photoImg: { width: '100%', height: '100%' },
-  photoVideo: { backgroundColor: CREAM.card, alignItems: 'center', justifyContent: 'center' },
-  photoVideoIcon: { color: CREAM.text, fontSize: 22 },
+  photoVideo: { backgroundColor: THEME.cardAlt, alignItems: 'center', justifyContent: 'center' },
+  photoVideoIcon: { color: THEME.text, fontSize: 22 },
 
   // Sorun Özeti (mor banner, ikon rozetli)
   summaryBox: {
-    backgroundColor: CREAM.purple,
+    backgroundColor: 'rgba(79, 70, 229, 0.2)',
     borderRadius: RADIUS,
     padding: 16,
     marginBottom: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(79, 70, 229, 0.4)',
   },
   summaryHead: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 10 },
   summaryIconBadge: {
     width: 40,
     height: 40,
     borderRadius: 12,
-    backgroundColor: CREAM.purpleBadge,
+    backgroundColor: THEME.primary,
     alignItems: 'center',
     justifyContent: 'center',
   },
   summaryIconText: { fontSize: 18 },
-  summaryMainTitle: { color: '#fff', fontSize: 16, fontWeight: '800' },
-  summarySubTitle: { color: 'rgba(255,255,255,0.75)', fontSize: 12, marginTop: 2, fontWeight: '600' },
-  summaryText: { color: '#fff', fontSize: 15, lineHeight: 22, fontWeight: '600' },
+  summaryMainTitle: { color: THEME.primaryLight, fontSize: 16, fontWeight: '800' },
+  summarySubTitle: { color: THEME.textMuted, fontSize: 12, marginTop: 2, fontWeight: '600' },
+  summaryText: { color: THEME.text, fontSize: 15, lineHeight: 22, fontWeight: '600' },
   summaryAnswerRow: { flexDirection: 'row', gap: 6, marginTop: 6 },
-  summaryAnswerBullet: { color: '#C9C7FF', fontSize: 13, fontWeight: '900' },
-  summaryAnswer: { color: '#fff', fontSize: 14, lineHeight: 20, flex: 1 },
+  summaryAnswerBullet: { color: THEME.neonPurple, fontSize: 13, fontWeight: '900' },
+  summaryAnswer: { color: THEME.text, fontSize: 14, lineHeight: 20, flex: 1 },
 
   messageBubble: {
-    backgroundColor: CREAM.card,
+    backgroundColor: THEME.card,
     borderRadius: RADIUS,
     borderWidth: 1,
-    borderColor: CREAM.border,
+    borderColor: THEME.border,
     padding: 16,
     marginBottom: 10,
   },
 
-  // Genel bölüm kartı — rakip ekranında iç kenarlık yok, sadece nötr gri dolgu (rb 123546)
+  // Genel bölüm kartı — Glassmorphism etkisi
   sectionCard: {
     borderRadius: RADIUS,
     padding: 16,
-    marginBottom: 12,
+    marginBottom: 16,
+    borderWidth: 1.5,
+    borderColor: THEME.border,
   },
-  plainCard: { backgroundColor: CREAM.subtle },
-  sectionHeading: { color: CREAM.text, fontSize: 17, fontWeight: '800', marginBottom: 8 },
+  plainCard: { backgroundColor: THEME.card },
+  sectionHeading: { color: THEME.neonBlue, fontSize: 17, fontWeight: '800', marginBottom: 12 },
 
-  // Güvenlik "önce" uyarı kartı — sarı, ekranın en üstünde bir kez gösterilir (rb 123525)
+  // Güvenlik "önce" uyarı kartı — pulse animasyonlu
   safetyFirstCard: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 12,
-    backgroundColor: CREAM.warnBg,
+    backgroundColor: 'rgba(245, 158, 11, 0.1)',
     borderRadius: RADIUS,
     padding: 16,
-    marginBottom: 12,
+    marginBottom: 16,
   },
   safetyFirstIcon: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: CREAM.warnIcon,
     alignItems: 'center',
     justifyContent: 'center',
   },
   safetyFirstIconText: { color: '#fff', fontWeight: '900', fontSize: 16 },
-  safetyFirstTitle: { color: CREAM.text, fontSize: 15, fontWeight: '800', marginBottom: 4 },
-  safetyFirstText: { color: CREAM.text, fontSize: 14, lineHeight: 20 },
+  safetyFirstTitle: { color: THEME.warning, fontSize: 15, fontWeight: '800', marginBottom: 4 },
+  safetyFirstText: { color: THEME.text, fontSize: 14, lineHeight: 20 },
 
   riskPill: {
     alignSelf: 'flex-start',
@@ -1208,145 +1441,112 @@ const styles = StyleSheet.create({
 
   // Adım adım çözüm
   stepsSummaryBox: {
-    backgroundColor: CREAM.card,
+    backgroundColor: THEME.cardAlt,
     borderWidth: 1,
-    borderColor: CREAM.border,
+    borderColor: THEME.border,
     borderRadius: 12,
     padding: 12,
     marginBottom: 12,
   },
   stepsSummaryLabel: {
-    color: CREAM.primary,
+    color: THEME.neonBlue,
     fontSize: 11,
     fontWeight: '800',
     textTransform: 'uppercase',
     letterSpacing: 0.6,
     marginBottom: 4,
   },
-  stepsSummary: { color: CREAM.text, fontSize: 14, lineHeight: 21, fontWeight: '600' },
+  stepsSummary: { color: THEME.text, fontSize: 14, lineHeight: 21, fontWeight: '600' },
 
   stepBlock: { paddingBottom: 16, marginBottom: 4 },
-  stepBlockDivider: { borderBottomWidth: 1, borderBottomColor: CREAM.border },
+  stepBlockDivider: { borderBottomWidth: 1, borderBottomColor: THEME.border },
   stepRow: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 10, paddingRight: 6 },
   stepCircle: {
     width: 30,
     height: 30,
     borderRadius: 15,
-    backgroundColor: CREAM.purple,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 10,
     marginTop: 1,
   },
   stepCircleText: { color: '#fff', fontWeight: '800', fontSize: 14 },
-  stepText: { flex: 1, color: CREAM.text, fontSize: 16, lineHeight: 22, fontWeight: '800' },
+  stepText: { flex: 1, color: THEME.text, fontSize: 16, lineHeight: 22, fontWeight: '800' },
   stepDescWrap: { marginBottom: 8 },
 
   stepFieldRow: { marginBottom: 10 },
   stepFieldLabel: {
-    color: CREAM.textMuted,
+    color: THEME.textMuted,
     fontSize: 12,
     fontWeight: '800',
     textTransform: 'uppercase',
     letterSpacing: 0.3,
     marginBottom: 3,
   },
-  stepFieldValue: { color: CREAM.text, fontSize: 15, lineHeight: 21 },
+  stepFieldValue: { color: THEME.text, fontSize: 15, lineHeight: 21 },
 
   toolChipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 2 },
   toolChip: {
-    backgroundColor: CREAM.toolChipBg,
     borderRadius: 20,
     paddingVertical: 8,
     paddingHorizontal: 14,
   },
-  toolChipText: { color: CREAM.toolChipText, fontSize: 13, fontWeight: '700' },
+  toolChipText: { fontSize: 13, fontWeight: '700' },
 
   stepMetaRow: { flexDirection: 'row', gap: 8, marginTop: 4 },
   metaPill: {
-    backgroundColor: CREAM.pillBg,
     borderRadius: 20,
     paddingVertical: 6,
     paddingHorizontal: 12,
   },
-  metaPillText: { color: CREAM.pillText, fontSize: 12, fontWeight: '800' },
+  metaPillText: { fontSize: 12, fontWeight: '800' },
 
-  inlineBold: { fontWeight: '900', color: CREAM.primary },
-
-  // Alt butonlar: yeni onarım (indigo) + tamamlandı (yeşil) — ikon solda, metin sağda
-  footerBtns: { flexDirection: 'row', gap: 10, marginTop: 4, marginBottom: 12 },
-  footerBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 16,
-    borderRadius: RADIUS,
-  },
-  footerBtnIcon: { color: '#fff', fontSize: 18, fontWeight: '900' },
-  footerBtnNew: { backgroundColor: CREAM.primary },
-  footerBtnNewText: { color: '#fff', fontWeight: '800', fontSize: 14, flexShrink: 1 },
-  footerBtnDone: { backgroundColor: CREAM.success },
-  footerBtnDoneText: { color: '#fff', fontWeight: '800', fontSize: 14, flexShrink: 1 },
-  footerBtnDoneInactive: { opacity: 0.55 },
-  doneTag: {
-    alignSelf: 'center',
-    backgroundColor: CREAM.pillBg,
-    borderRadius: 20,
-    paddingVertical: 6,
-    paddingHorizontal: 14,
-    marginBottom: 10,
-  },
-  doneTagText: { color: CREAM.pillText, fontSize: 13, fontWeight: '900' },
+  inlineBold: { fontWeight: '900', color: THEME.neonBlue },
 
   // Maliyet kartı
-  costCard: { backgroundColor: CREAM.costBg },
-  costTitle: { color: CREAM.costTitle, fontSize: 20, fontWeight: '800', marginBottom: 10 },
+  costCard: { backgroundColor: 'rgba(16, 185, 129, 0.1)', padding: 16 },
+  costTitle: { color: THEME.success, fontSize: 18, fontWeight: '800', marginBottom: 8 },
   costRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     justifyContent: 'space-between',
-    paddingVertical: 8,
+    paddingVertical: 6,
     gap: 12,
   },
-  costRowLabel: { color: CREAM.costLabel, fontSize: 15, fontWeight: '600', flexShrink: 1 },
-  costRowValue: { color: CREAM.costTitle, fontSize: 15, fontWeight: '800' },
-  costRowSave: { marginTop: 6, paddingTop: 12, paddingBottom: 12 },
-  costSaveLabel: { color: CREAM.costLabel, fontSize: 15, fontWeight: '700' },
-  costSaveValue: { color: CREAM.costTitle, fontSize: 19, fontWeight: '900' },
-  costEco: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 14 },
+  costRowLabel: { color: THEME.textMuted, fontSize: 15, fontWeight: '600', flex: 1.2 },
+  costRowValue: { color: THEME.text, fontSize: 15, fontWeight: '800', flex: 1, textAlign: 'right' },
+  costRowSave: { marginTop: 4, paddingTop: 10, paddingBottom: 6 },
+  costSaveLabel: { color: THEME.success, fontSize: 16, fontWeight: '800', flex: 1 },
+  costSaveValue: { color: THEME.success, fontSize: 18, fontWeight: '900', flex: 1, textAlign: 'right' },
+  costEco: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 12 },
   costEcoIcon: { fontSize: 15 },
-  costEcoText: { color: CREAM.costLabel, fontSize: 13, lineHeight: 18, flex: 1 },
-  costNote: { color: CREAM.costLabel, fontSize: 12, marginTop: 8, fontStyle: 'italic' },
+  costEcoText: { color: THEME.textMuted, fontSize: 13, lineHeight: 18, flex: 1 },
+  costNote: { color: THEME.textMuted, fontSize: 12, marginTop: 6, fontStyle: 'italic' },
 
-  userBubble: { backgroundColor: '#EEEDFC', borderColor: CREAM.primary },
-  userText: { color: '#3730A3', fontSize: 15, lineHeight: 22, fontWeight: '600' },
+  userBubble: { backgroundColor: 'rgba(79, 70, 229, 0.15)', borderColor: THEME.primary },
+  userText: { color: THEME.text, fontSize: 15, lineHeight: 22, fontWeight: '600' },
   questionBox: {
     marginTop: 6,
-    backgroundColor: CREAM.subtle,
+    backgroundColor: THEME.card,
     borderRadius: RADIUS,
     padding: 16,
+    borderWidth: 1,
+    borderColor: THEME.border,
   },
   cardWrap: { marginBottom: 8 },
-  questionTitle: { color: CREAM.text, fontSize: 16, fontWeight: '800' },
-  questionHint: { color: CREAM.textMuted, fontSize: 13, marginTop: 4, lineHeight: 19 },
-  yesNoRow: { flexDirection: 'row', gap: 10, marginTop: 14 },
+  questionTitle: { color: THEME.text, fontSize: 16, fontWeight: '800' },
+  questionHint: { color: THEME.textMuted, fontSize: 13, marginTop: 4, lineHeight: 19 },
+  yesNoWrap: { marginTop: 14 },
+  yesNoRow: { flexDirection: 'row', gap: 10 },
   yesNoBtn: { flex: 1, paddingVertical: 14, borderRadius: RADIUS, alignItems: 'center' },
-  yesBtn: { backgroundColor: CREAM.success },
-  noBtn: { backgroundColor: CREAM.danger },
+  yesBtn: { backgroundColor: THEME.success },
+  noBtn: { backgroundColor: THEME.danger },
   yesNoText: { color: '#fff', fontWeight: '800', fontSize: 14 },
-  yesNoHint: { color: 'rgba(255,255,255,0.85)', fontSize: 11, marginTop: 2, fontStyle: 'italic' },
-  answerBox: {
-    marginTop: 6,
-    backgroundColor: CREAM.subtle,
-    borderRadius: RADIUS,
-    padding: 16,
-  },
-  answerText: { color: CREAM.text, fontSize: 15, lineHeight: 22 },
+  yesNoHintRow: { flexDirection: 'row', gap: 10, marginTop: 8 },
+  yesNoHint: { flex: 1, textAlign: 'center', color: THEME.textMuted, fontSize: 11, fontStyle: 'italic' },
   mapBtn: {
     marginTop: 16,
-    backgroundColor: CREAM.primary,
+    backgroundColor: THEME.primary,
     borderRadius: RADIUS,
     padding: 16,
     alignItems: 'center',
@@ -1357,76 +1557,78 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: SPACING,
     borderTopWidth: 1,
-    borderTopColor: CREAM.border,
-    backgroundColor: CREAM.card,
+    borderTopColor: THEME.border,
+    backgroundColor: THEME.card,
     gap: 10,
   },
   input: {
     flex: 1,
-    backgroundColor: CREAM.subtle,
+    backgroundColor: THEME.cardAlt,
     borderRadius: RADIUS,
     paddingHorizontal: 14,
     minHeight: 44,
-    color: CREAM.text,
+    color: THEME.text,
   },
   sendBtn: {
     width: 48,
     height: 48,
     borderRadius: RADIUS,
-    backgroundColor: CREAM.primary,
+    backgroundColor: THEME.primary,
     alignItems: 'center',
     justifyContent: 'center',
   },
   sendBtnText: { color: '#fff', fontSize: 20, fontWeight: '800' },
   disabled: { opacity: 0.6 },
   optionBox: {
-    backgroundColor: CREAM.subtle,
+    backgroundColor: THEME.card,
     borderRadius: RADIUS,
     padding: 16,
     marginBottom: 10,
   },
   questionNotice: {
-    backgroundColor: '#FDF3DC',
+    backgroundColor: 'rgba(245, 158, 11, 0.1)',
     borderWidth: 1,
-    borderColor: CREAM.warning,
+    borderColor: THEME.warning,
     borderRadius: 10,
     paddingVertical: 8,
     paddingHorizontal: 12,
     marginBottom: 12,
   },
-  questionNoticeText: { color: CREAM.warning, fontSize: 13, fontWeight: '800', textAlign: 'center' },
-  optionQuestion: { color: CREAM.text, fontSize: 15, fontWeight: '800', marginBottom: 10, lineHeight: 21 },
+  questionNoticeText: { color: THEME.warning, fontSize: 13, fontWeight: '800', textAlign: 'center' },
+  optionQuestion: { color: THEME.text, fontSize: 15, fontWeight: '800', marginBottom: 10, lineHeight: 21 },
   optionBtn: {
-    backgroundColor: CREAM.card,
+    backgroundColor: THEME.cardAlt,
     borderWidth: 1,
-    borderColor: CREAM.primary,
+    borderColor: THEME.primary,
     borderRadius: RADIUS,
     paddingVertical: 12,
     paddingHorizontal: 14,
     marginBottom: 8,
   },
-  optionBtnText: { color: CREAM.primary, fontWeight: '700', fontSize: 14, lineHeight: 20 },
-  optionFreeHint: { color: CREAM.textMuted, fontSize: 12, marginTop: 6, textAlign: 'center', fontStyle: 'italic' },
-  cursor: { color: CREAM.primary, fontWeight: '700', marginTop: 4 },
+  optionBtnText: { color: THEME.primaryLight, fontWeight: '700', fontSize: 14, lineHeight: 20 },
+  optionFreeHint: { color: THEME.textMuted, fontSize: 12, marginTop: 6, textAlign: 'center', fontStyle: 'italic' },
+  cursor: { color: THEME.neonBlue, fontWeight: '700', marginTop: 4 },
 
   // Soru modali (uyari ekrani)
   modalBackdrop: {
     flex: 1,
-    backgroundColor: 'rgba(20,20,30,0.72)',
+    backgroundColor: 'rgba(2, 6, 23, 0.9)',
     justifyContent: 'center',
     padding: 20,
   },
   modalCard: {
-    backgroundColor: CREAM.card,
-    borderRadius: 20,
-    padding: 20,
+    backgroundColor: THEME.card,
+    borderRadius: 24,
+    padding: 24,
     alignItems: 'stretch',
+    borderWidth: 1.5,
+    borderColor: THEME.border,
   },
   modalIconCircle: {
     width: 52,
     height: 52,
     borderRadius: 26,
-    backgroundColor: '#FBEEC9',
+    backgroundColor: 'rgba(245, 158, 11, 0.2)',
     alignItems: 'center',
     justifyContent: 'center',
     alignSelf: 'center',
@@ -1434,26 +1636,100 @@ const styles = StyleSheet.create({
   },
   modalIcon: { fontSize: 24 },
   modalNotice: {
-    backgroundColor: '#FDF3DC',
+    backgroundColor: 'rgba(245, 158, 11, 0.1)',
     borderWidth: 1,
-    borderColor: CREAM.warning,
+    borderColor: THEME.warning,
     borderRadius: 10,
     paddingVertical: 8,
     paddingHorizontal: 12,
     marginBottom: 12,
   },
-  modalNoticeText: { color: CREAM.warning, fontSize: 12, fontWeight: '800', textAlign: 'center' },
-  modalQuestion: { color: CREAM.text, fontSize: 15, fontWeight: '800', marginBottom: 14, lineHeight: 22 },
+  modalNoticeText: { color: THEME.warning, fontSize: 12, fontWeight: '800', textAlign: 'center' },
+  modalQuestion: { color: THEME.text, fontSize: 16, fontWeight: '800', marginBottom: 16, lineHeight: 22 },
   modalOption: {
-    backgroundColor: CREAM.subtle,
-    borderWidth: 1,
-    borderColor: CREAM.primary,
+    backgroundColor: THEME.cardAlt,
+    borderWidth: 1.5,
+    borderColor: THEME.primary,
     borderRadius: RADIUS,
-    paddingVertical: 13,
-    paddingHorizontal: 14,
-    marginBottom: 8,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    marginBottom: 10,
   },
-  modalOptionText: { color: CREAM.primary, fontWeight: '700', fontSize: 14, lineHeight: 20 },
-  modalOwn: { alignItems: 'center', paddingVertical: 8, marginTop: 4 },
-  modalOwnText: { color: CREAM.textMuted, fontSize: 12, textAlign: 'center', fontStyle: 'italic' },
+  modalOptionText: { color: THEME.primaryLight, fontWeight: '700', fontSize: 14, lineHeight: 20 },
+
+  // Modal içinde serbest metin girişi (örnek cevapların altında)
+  modalOwnInputWrap: {
+    marginTop: 14,
+    borderTopWidth: 1,
+    borderTopColor: THEME.border,
+    paddingTop: 16,
+  },
+  modalOwnLabel: {
+    color: THEME.textMuted,
+    fontSize: 12,
+    fontWeight: '700',
+    marginBottom: 10,
+    textAlign: 'center',
+  },
+  modalInputRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8 },
+  modalInput: {
+    flex: 1,
+    backgroundColor: THEME.cardAlt,
+    borderWidth: 1,
+    borderColor: THEME.border,
+    borderRadius: RADIUS,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    minHeight: 46,
+    color: THEME.text,
+    maxHeight: 120,
+    textAlignVertical: 'top',
+  },
+  modalSendBtn: {
+    width: 46,
+    height: 46,
+    borderRadius: RADIUS,
+    backgroundColor: THEME.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalSendBtnDisabled: { opacity: 0.5 },
+  modalSendBtnText: { color: '#fff', fontSize: 18, fontWeight: '900' },
+
+  // CanFix seçim modali
+  diyModalTitle: { color: THEME.text, fontSize: 18, fontWeight: '800', textAlign: 'center', marginBottom: 16, lineHeight: 24 },
+  diyModalLabel: { color: THEME.textMuted, fontSize: 13, fontWeight: '700', marginBottom: 10, textAlign: 'center' },
+  materialsBox: {
+    backgroundColor: THEME.cardAlt,
+    borderRadius: RADIUS,
+    padding: 14,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: THEME.border,
+    maxHeight: 190,
+  },
+  materialRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
+  materialIconBadge: {
+    width: 34,
+    height: 34,
+    borderRadius: 12,
+    backgroundColor: THEME.card,
+    borderWidth: 1,
+    borderColor: THEME.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
+  materialIcon: { fontSize: 18 },
+  materialText: { color: THEME.text, fontSize: 14, lineHeight: 22, flex: 1 },
+  diyModalAsk: { color: THEME.textMuted, fontSize: 14, lineHeight: 21, textAlign: 'center', marginBottom: 16 },
+  diyModalBackBtn: {
+    marginTop: 12,
+    paddingVertical: 12,
+    borderRadius: RADIUS,
+    borderWidth: 1.5,
+    borderColor: THEME.border,
+    alignItems: 'center',
+  },
+  diyModalBackBtnText: { color: THEME.textMuted, fontWeight: '700', fontSize: 14 },
 });

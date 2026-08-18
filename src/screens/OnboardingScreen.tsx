@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import {
   Dimensions,
   FlatList,
+  Image,
   Pressable,
   StyleSheet,
   Text,
@@ -12,26 +13,35 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { COLORS, RADIUS, SPACING } from '../theme';
+import { COLORS, SPACING } from '../theme';
 import Logo from '../components/Logo';
-import BackgroundVideo from '../components/BackgroundVideo';
 
 interface Props {
   onDone: () => void;
 }
 
-const PAGES = [
-  { emoji: '🛠️', tint: 'rgba(99,102,241,0.18)', a: 'onb1A', b: 'onb1B', desc: 'onb1Desc' },
-  { emoji: '💰', tint: 'rgba(52,208,122,0.16)', a: 'onb2A', b: 'onb2B', desc: 'onb2Desc' },
-  { emoji: '🚗', tint: 'rgba(247,192,74,0.16)', a: 'onb3A', b: 'onb3B', desc: 'onb3Desc' },
-  { emoji: '🔧', tint: 'rgba(245,86,79,0.16)', a: 'onb4A', b: 'onb4B', desc: 'onb4Desc' },
-];
+const ACCENT = '#5856D6';
+const PILL_INACTIVE = '#D9D9E3';
 
-const VIDEOS = [
-  require('../../assets/videos/v1.mp4'),
-  require('../../assets/videos/v2.mp4'),
-  require('../../assets/videos/v3.mp4'),
-  require('../../assets/videos/v4.mp4'),
+const PAGES = [
+  {
+    key: 'plumbing',
+    image: require('../../assets/onboarding/plumbing.jpg'),
+    title: 'onb1Title',
+    desc: 'onb1Desc',
+  },
+  {
+    key: 'painting',
+    image: require('../../assets/onboarding/painting.jpg'),
+    title: 'onb2Title',
+    desc: 'onb2Desc',
+  },
+  {
+    key: 'woodworking',
+    image: require('../../assets/onboarding/woodworking.jpg'),
+    title: 'onb3Title',
+    desc: 'onb3Desc',
+  },
 ];
 
 const { width } = Dimensions.get('window');
@@ -54,20 +64,9 @@ export default function OnboardingScreen({ onDone }: Props) {
     setIndex(Math.max(0, Math.min(PAGES.length - 1, i)));
   };
 
-  const renderPage = ({ item, index }: { item: (typeof PAGES)[number]; index: number }) => (
+  const renderPage = ({ item }: { item: (typeof PAGES)[number] }) => (
     <View style={styles.page}>
-      <BackgroundVideo source={VIDEOS[index % VIDEOS.length]} />
-      <View style={styles.scrim} />
-      <View style={styles.pageBody}>
-        <View style={[styles.art, { backgroundColor: item.tint }]}>
-          <Text style={styles.artEmoji}>{item.emoji}</Text>
-        </View>
-        <Text style={styles.title}>
-          <Text style={styles.titleA}>{t(item.a)} </Text>
-          <Text style={styles.titleB}>{t(item.b)}</Text>
-        </Text>
-        <Text style={styles.desc}>{t(item.desc)}</Text>
-      </View>
+      <Image source={item.image} style={styles.image} resizeMode="cover" />
     </View>
   );
 
@@ -85,91 +84,108 @@ export default function OnboardingScreen({ onDone }: Props) {
         )}
       </View>
 
-      <FlatList
-        ref={listRef}
-        data={PAGES}
-        horizontal
-        pagingEnabled
-        showsHorizontalScrollIndicator={false}
-        keyExtractor={(_, i) => String(i)}
-        renderItem={renderPage}
-        onMomentumScrollEnd={onMomentumEnd}
-        getItemLayout={(_, i) => ({ length: width, offset: width * i, index: i })}
-      />
+      <View style={styles.imageWrap}>
+        <FlatList
+          ref={listRef}
+          data={PAGES}
+          horizontal
+          pagingEnabled
+          showsHorizontalScrollIndicator={false}
+          keyExtractor={(item) => item.key}
+          renderItem={renderPage}
+          onMomentumScrollEnd={onMomentumEnd}
+          getItemLayout={(_, i) => ({ length: width, offset: width * i, index: i })}
+        />
+        <View style={styles.indicator}>
+          {PAGES.map((_, i) => (
+            <View key={i} style={[styles.pill, i === index && styles.pillActive]} />
+          ))}
+        </View>
+      </View>
 
-      <View style={styles.dots}>
-        {PAGES.map((_, i) => (
-          <View key={i} style={[styles.dot, i === index && styles.dotActive]} />
-        ))}
+      <View style={styles.content}>
+        <Text style={styles.title}>{t(PAGES[index].title)}</Text>
+        <Text style={styles.desc}>{t(PAGES[index].desc)}</Text>
       </View>
 
       <View style={styles.footer}>
-        {last ? (
-          <Pressable style={styles.primaryBtn} onPress={onDone}>
-            <Text style={styles.primaryBtnText}>{t('onbStart')} →</Text>
-          </Pressable>
-        ) : (
-          <Pressable style={styles.primaryBtn} onPress={() => go(index + 1)}>
-            <Text style={styles.primaryBtnText}>{t('onbNext')} →</Text>
-          </Pressable>
-        )}
+        <Pressable style={styles.primaryBtn} onPress={last ? onDone : () => go(index + 1)}>
+          <Text style={styles.primaryBtnText}>
+            {last ? t('onbStart') : t('onbNext')} →
+          </Text>
+        </Pressable>
       </View>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: COLORS.background },
+  safe: { flex: 1, backgroundColor: '#FFFFFF' },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: SPACING,
     paddingTop: 10,
+    paddingBottom: 8,
   },
   brandRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   brandName: { color: COLORS.text, fontWeight: '900', fontSize: 20, letterSpacing: 1.5 },
   skip: { color: COLORS.textMuted, fontWeight: '700', fontSize: 15 },
-  page: { width, alignItems: 'center', justifyContent: 'center', paddingBottom: 12 },
-  pageBody: { alignItems: 'center', paddingHorizontal: 28 },
-  scrim: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(8,10,18,0.62)' },
-  art: {
-    width: 180,
-    height: 180,
-    borderRadius: 90,
+  imageWrap: {
+    height: '50%',
+    borderBottomLeftRadius: 48,
+    borderBottomRightRadius: 48,
+    overflow: 'hidden',
+    backgroundColor: '#F0F0F5',
+  },
+  page: { width, height: '100%' },
+  image: { width: '100%', height: '100%' },
+  indicator: {
+    position: 'absolute',
+    bottom: 16,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  pill: { width: 8, height: 8, borderRadius: 4, backgroundColor: PILL_INACTIVE },
+  pillActive: { width: 28, backgroundColor: ACCENT },
+  content: {
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 32,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.14)',
+    paddingHorizontal: 32,
+    paddingVertical: 16,
   },
-  artEmoji: { fontSize: 96 },
-  title: { fontSize: 30, fontWeight: '900', textAlign: 'center', lineHeight: 38, letterSpacing: -0.3 },
-  titleA: { color: COLORS.text },
-  titleB: { color: COLORS.primary },
+  title: {
+    color: COLORS.text,
+    fontSize: 26,
+    fontWeight: '800',
+    textAlign: 'center',
+    lineHeight: 33,
+    letterSpacing: -0.3,
+  },
   desc: {
     color: COLORS.textMuted,
-    fontSize: 15,
-    lineHeight: 23,
+    fontSize: 16,
+    lineHeight: 24,
     textAlign: 'center',
-    marginTop: 14,
+    marginTop: 12,
     maxWidth: 320,
   },
-  dots: { flexDirection: 'row', justifyContent: 'center', gap: 8, marginTop: 8 },
-  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: COLORS.border },
-  dotActive: { backgroundColor: COLORS.primary, width: 26 },
-  footer: { padding: SPACING, paddingTop: 18 },
+  footer: { paddingHorizontal: 24, paddingTop: 10, paddingBottom: 20 },
   primaryBtn: {
-    backgroundColor: COLORS.accent,
-    borderRadius: RADIUS,
-    padding: 17,
+    backgroundColor: ACCENT,
+    borderRadius: 28,
+    paddingVertical: 18,
     alignItems: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.3,
+    shadowOpacity: 0.25,
     shadowRadius: 12,
     elevation: 6,
   },
-  primaryBtnText: { color: '#fff', fontWeight: '900', fontSize: 16, letterSpacing: 0.3 },
+  primaryBtnText: { color: '#fff', fontWeight: '800', fontSize: 17, letterSpacing: 0.3 },
 });

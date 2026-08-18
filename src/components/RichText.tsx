@@ -2,6 +2,7 @@ import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { COLORS } from '../theme';
+import { hasVisibleContent, stripInvisible } from '../utils/invisible';
 
 interface Props {
   content: string;
@@ -20,48 +21,55 @@ interface Props {
  *   yüksekliğinde boş paragraf oluşturup kartlarda 100-600px boşluk yaratır)
  */
 
-// Sıfır genişlikte / görünmez karakterler: ZWSP, ZWNJ, ZWJ, LRM/RLM, bidi
-// kontrolleri, kelime birleştirici, görünmez işleçler, varyasyon seçiciler, BOM.
-const INVISIBLE_RE = /[\u00AD\u180E\u200B-\u200F\u202A-\u202E\u2060-\u206F\uFE00-\uFE0F\uFEFF]/g;
+// Sıfır genişlikte / görünmez karakterlerle ilgili detaylar utils/invisible.ts içindedir.
 
 export default function RichText({ content, color }: Props) {
   const lines = content.split('\n');
 
   const blocks: React.ReactNode[] = [];
-  let listMode: 'none' | 'bullet' | 'number' = 'none';
+  let pendingBodyLines: string[] = [];
+
+  const flushBody = (key: number) => {
+    if (pendingBodyLines.length > 0) {
+      blocks.push(
+        <Text key={`body-${key}`} selectable style={[styles.body, color && { color }]}>
+          {renderInline(pendingBodyLines.join('\n'), color)}
+        </Text>
+      );
+      pendingBodyLines = [];
+    }
+  };
 
   lines.forEach((line, idx) => {
-    const stripped = line.replace(INVISIBLE_RE, '');
+    const stripped = stripInvisible(line);
     const trimmed = stripped.trim();
 
-    if (!trimmed) {
-      listMode = 'none';
-      if (stripped.length === 0) return;
-      blocks.push(<View key={idx} style={styles.spacer} />);
+    if (!hasVisibleContent(line)) {
+      flushBody(idx);
       return;
     }
 
     const risk = matchRisk(trimmed);
     if (risk) {
-      listMode = 'none';
+      flushBody(idx);
       blocks.push(<RiskBadge key={idx} risk={risk} />);
       return;
     }
 
     const heading = matchHeading(trimmed);
     if (heading) {
-      listMode = 'none';
-      blocks.push(<Text key={idx} style={styles.heading}>{heading}</Text>);
+      flushBody(idx);
+      blocks.push(<Text key={idx} selectable style={styles.heading}>{heading}</Text>);
       return;
     }
 
     const bullet = trimmed.match(/^[-•*]\s+(.*)$/);
     if (bullet) {
-      listMode = 'bullet';
+      flushBody(idx);
       blocks.push(
         <View key={idx} style={styles.bulletRow}>
           <Text style={[styles.bulletDot, color && { color }]}>{color ? '›' : '•'}</Text>
-          <Text style={[styles.body, color && { color }]}>{renderInline(bullet[1], color)}</Text>
+          <Text selectable style={[styles.body, color && { color }]}>{renderInline(bullet[1], color)}</Text>
         </View>
       );
       return;
@@ -69,24 +77,21 @@ export default function RichText({ content, color }: Props) {
 
     const num = trimmed.match(/^\d+[.)]\s+(.*)$/);
     if (num) {
-      listMode = 'number';
+      flushBody(idx);
       blocks.push(
         <View key={idx} style={styles.numRow}>
           <Text style={[styles.numDot, color && { color }]}>{trimmed.match(/^\d+/)?.[0]}.</Text>
-          <Text style={[styles.body, color && { color }]}>{renderInline(num[1], color)}</Text>
+          <Text selectable style={[styles.body, color && { color }]}>{renderInline(num[1], color)}</Text>
         </View>
       );
       return;
     }
 
     // Normal paragraf.
-    listMode = 'none';
-    blocks.push(
-      <Text key={idx} style={[styles.body, color && { color }]}>
-        {renderInline(trimmed, color)}
-      </Text>
-    );
+    pendingBodyLines.push(trimmed);
   });
+
+  flushBody(lines.length);
 
   return <View>{blocks}</View>;
 }
@@ -110,18 +115,30 @@ function matchRisk(trimmed: string): string | null {
 }
 
 function renderInline(text: string, color?: string): React.ReactNode {
-  // Aynı bölüm içinde **kalın** bölmeleri işle.
-  const parts = text.split(/(\*\*[^*]+\*\*)/g);
+  // Regex to match **bold** or *italic* or _italic_
+  const parts = text.split(/(\*\*[^*]+\*\*|\*[^*]+\*|_[^_]+_)/g).filter((p) => p.length > 0);
   return parts.map((part, i) => {
     const bold = part.match(/^\*\*([^*]+)\*\*$/);
     if (bold) {
       return (
-        <Text key={i} style={[styles.bold, color && { color }]}>
+        <Text key={i} selectable style={[styles.bold, color && { color }]}>
           {bold[1]}
         </Text>
       );
     }
-    return <Text key={i} style={color && { color }}>{part}</Text>;
+    const italic = part.match(/^[*_]([^*_]+)[*_]$/);
+    if (italic) {
+      return (
+        <Text key={i} selectable style={[styles.italic, color && { color }]}>
+          {italic[1]}
+        </Text>
+      );
+    }
+    return (
+      <Text key={i} selectable style={color && { color }}>
+        {part}
+      </Text>
+    );
   });
 }
 
@@ -136,16 +153,16 @@ function RiskBadge({ risk }: { risk: string }) {
 }
 
 const styles = StyleSheet.create({
-  spacer: { height: 10 },
   heading: {
     fontSize: 18,
     fontWeight: '800',
     color: COLORS.primary,
-    marginTop: 6,
+    marginTop: 8,
     marginBottom: 4,
   },
   body: { color: COLORS.text, fontSize: 15, lineHeight: 22 },
   bold: { fontWeight: '800', color: COLORS.text },
+  italic: { fontStyle: 'italic' },
   bulletRow: { flexDirection: 'row', paddingRight: 6 },
   bulletDot: { color: COLORS.accent, fontWeight: '800', marginRight: 8, fontSize: 15 },
   numRow: { flexDirection: 'row', paddingRight: 6 },

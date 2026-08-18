@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: fixora-api
+    runtime: python
+    plan: free
+    buildCommand: cd backend && pip install -r requirements.txt
+    startCommand: cd backend && gunicorn app.main:app --workers 2 --timeout 120 --bind 0.0.0.0:$PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11"
+      - key: GEMINI_API_KEYS
+        sync: false
+      - key: GEMINI_MODELS
+        sync: false
+      - key: QUOTA_COOLDOWN_SECONDS
+        value: "600"
+      - key: DEFAULT_LANGUAGE
+        value: "de"
+      - key: INPUT_RETENTION_MINUTES
+        value: "15"
+      - key: N8N_WEBHOOK_URL
+        sync: false
+    healthCheckPath: /health

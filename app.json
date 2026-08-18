@@ -20,7 +20,7 @@
     "android": {
       "package": "com.fixora.app",
       "adaptiveIcon": {
-        "backgroundColor": "#142A4C",
+        "backgroundColor": "#01163B",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
@@ -52,8 +52,7 @@
           "locationWhenInUsePermission": "FIXORA nutzt Ihren Standort, um nahegelegene Fachgeschäfte und Handwerker zu finden."
         }
       ],
-      "expo-localization",
-      "expo-video"
+      "expo-localization"
     ],
     "extra": {
       "googleWebClientId": "YOUR_WEB_CLIENT_ID.apps.googleusercontent.com"

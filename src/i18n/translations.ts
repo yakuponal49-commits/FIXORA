@@ -20,6 +20,10 @@ export interface Dict {
   uploadTitle: string;
   uploadDesc: string;
   photoSourceTitle: string;
+  addPhotoTitle: string;
+  addPhotoDesc: string;
+  addPhotoCamera: string;
+  addPhotoGallery: string;
   addMore: string;
   mediaRequired: string;
   descriptionRequired: string;
@@ -38,10 +42,7 @@ export interface Dict {
   costEco: string;
   yourPhoto: string;
   problemSummary: string;
-  markComplete: string;
-  completed: string;
   back: string;
-  newAnalysis: string;
   selfRepair: string;
   selfRepairHint: string;
   yesIcan: string;
@@ -54,8 +55,12 @@ export interface Dict {
   findPro: string;
   findProfessional: string;
   findProfessionalSoon: string;
+  diyFindAsk: string;
+  proFindAsk: string;
+  materialsListTitle: string;
   errorTitle: string;
   errorCheckNetwork: string;
+  errorEmptyResult: string;
   errorNoApiKey: string;
   errorQuota: string;
   permissionCamera: string;
@@ -83,22 +88,14 @@ export interface Dict {
   onbSkip: string;
   onbNext: string;
   onbStart: string;
-  onb1A: string;
-  onb1B: string;
+  onb1Title: string;
   onb1Desc: string;
-  onb2A: string;
-  onb2B: string;
+  onb2Title: string;
   onb2Desc: string;
-  onb3A: string;
-  onb3B: string;
+  onb3Title: string;
   onb3Desc: string;
-  onb4A: string;
-  onb4B: string;
-  onb4Desc: string;
 
   // Kategoriler
-  chooseCategory: string;
-  chooseSubcategory: string;
   catAppliances: string;
   catElectronics: string;
   catPlumbing: string;
@@ -162,6 +159,11 @@ export interface Dict {
   settingsPrivacyDesc: string;
   settingsConsent: string;
   settingsConsentDesc: string;
+
+  // Ayarlar Banner
+  settingsBannerTitle: string;
+  settingsBannerDesc: string;
+  settingsBannerBtn: string;
   shareMessage: string;
   shareFailed: string;
   termsTitle: string;
@@ -185,8 +187,6 @@ export interface Dict {
   tryDemo: string;
   demoTitle: string;
   demoDesc: string;
-  suggestCategory: string;
-  useSuggestion: string;
   stepsDone: string;
   shareResult: string;
   rateAsk: string;
@@ -197,6 +197,8 @@ export interface Dict {
   savedTotal: string;
   retry: string;
   retryDesc: string;
+  cameraRetry: string;
+  cameraOk: string;
 
   // Pro katmanı
   proTitle: string;
@@ -211,6 +213,35 @@ export interface Dict {
   proThanks: string;
   proActive: string;
 
+  // Pro Modal / Promo
+  promoTitle: string;
+  promoUnlimitedDaily: string;
+  promoPhotoVideoText: string;
+  promoFastAnalysis: string;
+  promoDetailedGuides: string;
+  promoPricingMonthly: string;
+  promoPricingYearly: string;
+  promoBestValue: string;
+  promoCodeLabel: string;
+  promoCodeButton: string;
+  promoHaveCode: string;
+  promoCodeChecking: string;
+  promoBuyButton: string;
+  promoTerms: string;
+  promoEnterCode: string;
+  promoInvalidCode: string;
+  promoLimitReached: string;
+  promoNetworkError: string;
+  promoSuccess: string;
+  successTitle: string;
+
+  // Crop Screen
+  cropTitle: string;
+  cropRotate: string;
+  cropAspect: string;
+  cropReset: string;
+  cropContinue: string;
+
   // Adım adım çözüm alt alanları + doğruluk rozeti + güvenlik-önce kartı
   stepWhyLabel: string;
   stepToolsLabel: string;
@@ -223,13 +254,16 @@ export interface Dict {
   confidenceMedium: string;
   confidenceLow: string;
   safetyFirstLabel: string;
+
+  // AI soru-cevap butonu
+  qnaCta: string;
 }
 
 const de: Dict = {
   appName: 'FIXORA',
   tagline: 'Ihr Hausreparatur-Assistent mit KI',
   subtitle:
-    'Fotografieren, sprechen oder beschreiben Sie das Problem — FIXORA analysiert es und gibt Ihnen eine Schritt-für-Schritt-Anleitung.',
+    'Machen Sie ein Foto und beschreiben Sie das Problem. FIXORA analysiert es und gibt Ihnen eine Schritt-für-Schritt-Anleitung.',
   settings: 'Einstellungen',
   language: 'Sprache',
   aiModel: 'KI-Modell',
@@ -245,10 +279,14 @@ const de: Dict = {
   uploadTitle: 'Foto oder Video hinzufügen',
   uploadDesc: 'Mache ein Foto oder wähle aus deiner Galerie',
   photoSourceTitle: 'Fotoquelle wählen',
+  addPhotoTitle: 'Foto hinzufügen',
+  addPhotoDesc: 'Machen Sie ein Foto oder wählen Sie eines aus Ihrer Galerie aus',
+  addPhotoCamera: 'Foto aufnehmen',
+  addPhotoGallery: 'Aus Galerie wählen',
   addMore: 'Hinzufügen',
-  mediaRequired: 'Bitte füge ein Foto oder Video hinzu',
+  mediaRequired: 'Bitte füge ein Foto hinzu',
   descriptionRequired: 'Bitte beschreibe das Problem',
-  analyze: 'Problem analysieren',
+  analyze: 'PROBLEM ANALYSIEREN',
   analyzing: 'Analyse läuft… dies kann einen Moment dauern',
   resultTitle: 'Analyse-Ergebnis',
   riskLabel: 'Risiko',
@@ -263,10 +301,7 @@ const de: Dict = {
   costEco: 'Reparieren schont die Umwelt und reduziert Abfall.',
   yourPhoto: 'Ihr Foto',
   problemSummary: 'Problemübersicht',
-  markComplete: 'Als erledigt markieren',
-  completed: 'Erledigt',
   back: 'Zurück',
-  newAnalysis: 'Neue Analyse',
   selfRepair: 'Können Sie diese Reparatur selbst durchführen?',
   selfRepairHint: 'Ehrlich beurteilen — FIXORA hilft Ihnen je nach Antwort weiter.',
   yesIcan: 'Ja, das kann ich',
@@ -280,8 +315,12 @@ const de: Dict = {
   findPro: 'Lokale Fachfirmen in meiner Nähe finden',
   findProfessional: 'Profi in meiner Nähe finden',
   findProfessionalSoon: '(Bald verfügbar)',
+  diyFindAsk: 'Soll ich einen Laden in Ihrer Nähe finden, wo Sie diese Materialien und Werkzeuge kaufen können?',
+  proFindAsk: 'Soll ich eine Firma oder einen Handwerker in Ihrer Nähe finden, der diese Reparatur durchführt?',
+  materialsListTitle: 'Materialien & Werkzeuge',
   errorTitle: 'Etwas ist schiefgelaufen',
   errorCheckNetwork: 'Bitte prüfen Sie Ihre Verbindung und versuchen Sie es erneut.',
+  errorEmptyResult: 'Der Assistent hat eine leere Antwort geliefert. Bitte versuchen Sie es erneut.',
   errorNoApiKey:
     'Kein gültiger Gemini-API-Schlüssel konfiguriert. Legen Sie einen Schlüssel in src/auth/config.ts fest.',
   errorQuota:
@@ -312,21 +351,16 @@ const de: Dict = {
   onbSkip: 'Überspringen',
   onbNext: 'Weiter',
   onbStart: 'Start',
-  onb1A: 'Werde dein eigener',
-  onb1B: 'Reparatur-Experte.',
-  onb1Desc: 'Etwas kaputt? Mach einfach ein Foto und füge bei Bedarf eine kurze Notiz hinzu.',
-  onb2A: 'Löse es selbst.',
-  onb2B: 'Sofort Geld sparen.',
-  onb2Desc: 'Geniesse das Gefühl, Zeit und Geld zu sparen.',
-  onb3A: 'Repariere alles.',
-  onb3B: 'Sogar dein Auto.',
-  onb3Desc: 'Von Motorproblemen bis zum Alltag — KI-Hilfe in Sekunden.',
-  onb4A: 'Grossartig!',
-  onb4B: 'Lass uns beginnen.',
-  onb4Desc: 'FIXORA führt dich Schritt für Schritt durch deine Reparatur.',
+  onb1Title: 'Lösen Sie Ihre Sanitärprobleme',
+  onb1Desc:
+    'Reparieren Sie Ihre gesamte Hausinstallation selbst – von tropfenden Armaturen bis zu Heizkörpern – mit Schritt-für-Schritt-Anleitungen.',
+  onb2Title: 'Frischen Sie Ihr Zuhause auf',
+  onb2Desc:
+    'Verleihen Sie Ihrem Wohnraum mit Wandfarbe, Rissreparatur und Dekorationstechniken einen professionellen Touch.',
+  onb3Title: 'Verleihen Sie Ihren Dingen neues Leben',
+  onb3Desc:
+    'Reparieren Sie alte Möbel oder beschädigte Holzgegenstände mit fachmännischer Präzision und sparen Sie Geld.',
 
-  chooseCategory: 'Wähle die passende Kategorie',
-  chooseSubcategory: 'Wähle die Unterkategorie',
   catAppliances: 'Haushaltsgeräte',
   catElectronics: 'Elektronik',
   catPlumbing: 'Sanitär',
@@ -388,6 +422,10 @@ const de: Dict = {
   settingsPrivacyDesc: 'Erfahren, wie deine Daten verwendet werden',
   settingsConsent: 'Einwilligung verwalten',
   settingsConsentDesc: 'Datenschutzeinstellungen ansehen und aktualisieren',
+
+  settingsBannerTitle: 'Intelligente Reparatur. Keine Rätselraten mehr.',
+  settingsBannerDesc: 'Erhalten Sie unbegrenzte Fixes, schnellere Ergebnisse und detaillierte Schritt-für-Schritt-Anleitungen.',
+  settingsBannerBtn: 'JETZT UPGRADEN',
   shareMessage:
     'FIXORA – der KI-gestützte Reparaturassistent für zu Hause. Mache ein Foto deines Problems und erhalte eine Schritt-für-Schritt-Anleitung: {url}',
   shareFailed: 'Teilen nicht möglich',
@@ -403,9 +441,9 @@ const de: Dict = {
   consentSaved: 'Deine Einstellungen wurden gespeichert.',
   consentReset: 'Auf Standard zurücksetzen',
   termsBody:
-    'Willkommen bei FIXORA.\n\n1. Nutzung\nDie App bietet KI-gestützte Reparaturhinweise. Die Ergebnisse dienen nur als Orientierung und ersetzen keine professionelle Fachprüfung.\n\n2. Verantwortung\nFIXORA übernimmt keine Haftung für Schäden, die durch das Befolgen der Anleitungen entstehen. Arbeite stets sicher und ziehe bei Unsicherheit einen Fachmann hinzu.\n\n3. Änderungen\nWir können diese Bedingungen jederzeit anpassen. Aktualisierte Bedingungen gelten ab Veröffentlichung in der App.',
+    'Willkommen bei FIXORA.\n\n1. Annahme der Bedingungen\nDurch Herunterladen, Installieren oder Nutzung von FIXORA ("die App") stimmen Sie diesen Nutzungsbedingungen zu. Wenn Sie nicht einverstanden sind, beenden Sie bitte sofort die Nutzung.\n\n2. Über FIXORA\nFIXORA ist ein KI-gestützter Reparaturassistent für zu Hause. Sie können ein Problem fotografieren, es beschreiben und eine Schritt-für-Schritt-Reparaturanleitung erhalten, die von künstlicher Intelligenz generiert wird.\n\n3. Nutzungsberechtigung\nSie müssen mindestens 13 Jahre alt sein, um FIXORA zu nutzen. Wenn Sie unter 18 Jahren alt sind, benötigen Sie die Einwilligung eines Erziehungsberechtigten.\n\n4. KI-generierte Inhalte\nFIXORA nutzt künstliche Intelligenz zur Erstellung von Reparaturvorschlägen und Anleitungen. KI-generierte Inhalte dienen ausschließlich zu Informationszwecken und ersetzen keine professionelle Prüfung oder Beratung. Konsultieren Sie bei Unsicherheit immer einen qualifizierten Fachmann. FIXORA garantiert nicht die Richtigkeit oder Vollständigkeit der KI-generierten Ergebnisse.\n\n5. Benutzereingaben\nSie können Fotos und Textbeschreibungen in die App hochladen. Sie sind allein verantwortlich für den Inhalt, den Sie einreichen. FIXORA überwacht Ihre Eingaben nicht aktiv, behält sich aber das Recht vor, Inhalte zu entfernen, die gegen diese Bedingungen verstoßen.\n\n6. Abonnements\nBestimmte Funktionen erfordern ein kostenpflichtiges Abonnement. Abonnements verlängern sich automatisch, sofern sie nicht mindestens 24 Stunden vor Ende des aktuellen Zeitraums gekündigt werden. Alle Abrechnungen, Kündigungen und Erstattungen werden über den jeweiligen App-Store (Google Play oder Apple App Store) abgewickelt. FIXORA erstattet nicht direkt.\n\n7. geistiges Eigentum\nAlle Inhalte, Funktionen und Funktionen von FIXORA sind ausschließliches Eigentum von FIXORA und durch geltende Urheberrechtsgesetze geschützt.\n\n8. Datenschutz\nIhre Nutzung von unterliegt auch unserer Datenschutzerklärung, die in diesen Bedingungen durch Verweis einbezogen ist.\n\n9. Gewährleistungsausschluss\nFIXORA wird "wie besehen" und "wie verfügbar" ohne jegliche Garantien bereitgestellt. FIXORA garantiert nicht, dass die App unterbrechungsfehlerfrei sein wird.\n\n10. Haftungsbeschränkung\nIm gesetzlich zulässigen Umfang haftet FIXORA nicht für indirekte, zufällige oder Folgeschäden, die sich aus Ihrer Nutzung der App ergeben.\n\n11. Änderungen der Bedingungen\nWir behalten uns das Recht vor, diese Bedingungen jederzeit zu ändern. Die weitere Nutzung von FIXORA nach Änderungen stellt Ihre Annahme der neuen Bedingungen dar.\n\n12. Kontakt\nBei Fragen zu diesen Bedingungen kontaktieren Sie uns bitte über den App-Store-Eintrag.',
   privacyBody:
-    'Datenschutz ist uns wichtig.\n\n1. Gespeicherte Daten\nFotos, Tonaufnahmen und Beschreibungen, die du zur Analyse hochlädst, werden verarbeitet und nicht länger als nötig gespeichert. Deine Analyse-Historie bleibt lokal auf deinem Gerät.\n\n2. Verwendung\nDeine Daten werden ausschließlich zur Bearbeitung deiner Reparaturanfrage verwendet.\n\n3. Kontakt\nFragen zum Datenschutz: sende uns eine E-Mail über die im App Store hinterlegten Kontaktdaten.',
+    'Datenschutz ist uns wichtig.\n\n1. Gespeicherte Daten\nFIXORA verarbeitet Fotos, Beschreibungen und andere Eingaben, die Sie zur Erstellung einer KI-gestützten Reparatanalyse einreichen. Diese Eingaben werden ausschließlich an Drittanbieter-KI-Dienste übertragen, um die angeforderte Ausgabe zu erstellen, und werden nicht auf FIXORA-Servern gespeichert. Ihre Analysehistorie bleibt lokal auf Ihrem Gerät.\n\n2. KI-Verarbeitung\nWenn Sie ein Foto oder eine Beschreibung einreichen, werden die Daten sicher an einen KI-Dienstanbieter (z.B. Google Gemini) übertragen, um Reparaturvorschläge zu erstellen. FIXORA verkauft Ihre Daten nicht und gibt sie nicht für Werbezwecke weiter. Der KI-Anbieter verarbeitet die Daten ausschließlich zur Rückgabe der angeforderten Analyse.\n\n3. Technische Daten\nFIXORA kann anonymisierte technische Daten (Gerätetyp, Betriebssystemversion, App-Nutzungsstatistiken) über Drittanbieter-Analysedienste sammeln, um die App zu verbessern. Diese Daten können nicht zur persönlichen Identifizierung verwendet werden.\n\n4. Nutzung Ihrer Daten\nIhre Daten werden ausschließlich zur Bearbeitung Ihrer Reparaturanfrage und zur Verbesserung des FIXORA-Erlebnisses verwendet.\n\n5. Datenspeicherung\nWir speichern Ihre Fotos oder Beschreibungen nicht auf unseren Servern. Die Analysehistorie wird lokal auf Ihrem Gerät gespeichert und kann jederzeit gelöscht werden.\n\n6. Drittanbieter-Dienste\nFIXORA nutzt Drittanbieter-Dienste (KI-Anbieter, Analysedienste), die Informationen sammeln können. Diese Dienste haben eigene Datenschutzrichtlinien. Wir empfehlen Ihnen, diese zu überprüfen.\n\n7. Datenschutz für Kinder\nFIXORA ist für Nutzer ab 13 Jahren bestimmt. Wir sammeln wissentlich keine persönlichen Daten von Kindern unter 13 Jahren.\n\n8. Sicherheit\nWir verwenden kommerziell angemessene Maßnahmen zum Schutz Ihrer Daten. Dennoch ist keine Übertragungs- oder Speichermethode vollständig sicher.\n\n9. Änderungen dieser Richtlinie\nWir können diese Datenschutzerklärung von Zeit zu Zeit aktualisieren. Über wesentliche Änderungen informieren wir Sie über die App.\n\n10. Kontakt\nDatenschutzfragen: Kontaktieren Sie uns über die Kontaktdaten im App-Store-Eintrag.',
 
   howItWorks: 'So funktioniert es',
   how1: 'Foto aufnehmen',
@@ -415,8 +453,6 @@ const de: Dict = {
   demoTitle: 'Sieh deine erste Analyse in 10 Sekunden',
   demoDesc:
     'Mein Küchenhahn tropft. Unter dem Spülbecken tritt Wasser aus und beim Öffnen ist ein Geräusch zu hören. Wie kann ich das reparieren?',
-  suggestCategory: 'Kategorie-Vorschlag',
-  useSuggestion: 'Vorschlag übernehmen',
   stepsDone: 'Alle Schritte erledigt! 🎉',
   shareResult: 'Ergebnis teilen',
   rateAsk: 'Wie gefällt dir FIXORA?',
@@ -427,6 +463,8 @@ const de: Dict = {
   savedTotal: 'Geschätzte Gesamtersparnis',
   retry: 'Erneut versuchen',
   retryDesc: 'Verbindung unterbrochen, Antwort ist unvollständig.',
+  cameraRetry: 'Erneut versuchen',
+  cameraOk: 'OK',
 
   proTitle: 'FIXORA Pro',
   proSub: 'Unbegrenzte Analysen und Prioritäts-Support',
@@ -439,6 +477,36 @@ const de: Dict = {
   proNotify: 'Benachrichtige mich, wenn Pro startet',
   proThanks: 'Danke, wir melden uns!',
   proActive: 'Pro aktiv ✓',
+  
+  // Pro Modal
+  promoTitle: 'FIXORA PRO',
+  promoUnlimitedDaily: 'Unbegrenzte tägliche Analyse',
+  promoPhotoVideoText: 'Foto, Video & Text',
+  promoFastAnalysis: 'Schnelle und detaillierte Reparaturanalyse',
+  promoDetailedGuides: 'Detaillierte Lösungsanleitungen',
+  promoPricingMonthly: '1 Monat',
+  promoPricingYearly: '1 Jahr',
+  promoBestValue: 'BESTER WERT',
+  promoCodeLabel: 'Promo-Code eingeben',
+  promoCodeButton: 'Code überprüfen',
+  promoHaveCode: 'Promo-Code vorhanden?',
+  promoCodeChecking: 'Wird überprüft...',
+  promoBuyButton: '💳 Mit Google Play zahlen',
+  promoTerms: 'Das Abonnement wird automatisch verlängert. Jederzeit kündbar.',
+  promoEnterCode: 'Bitte geben Sie einen Code ein',
+  promoInvalidCode: 'Ungültiger Code',
+  promoLimitReached: 'Dieser Code hat sein Nutzungslimit erreicht.',
+  promoNetworkError: 'Backend-Verbindungsfehler. Bitte erneut versuchen.',
+  promoSuccess: 'Pro aktiviert! Unbegrenzte Analyse verfügbar.',
+  successTitle: 'Erfolg',
+  
+  // Crop Screen
+  cropTitle: 'Bild zuschneiden',
+  cropRotate: 'Drehen',
+  cropAspect: '1:1',
+  cropReset: 'Zurücksetzen',
+  cropContinue: 'Weiter',
+
   stepWhyLabel: 'Warum',
   stepToolsLabel: 'Benötigte Werkzeuge',
   stepExpectedLabel: 'Erwartetes Ergebnis',
@@ -450,13 +518,14 @@ const de: Dict = {
   confidenceMedium: 'Mittel',
   confidenceLow: 'Niedrig',
   safetyFirstLabel: 'Sicherheit zuerst',
+  qnaCta: 'Konnte ich helfen? Falls nicht, können Sie mit der KI chatten — stellen Sie Ihre Fragen hier.',
 };
 
 const fr: Dict = {
   appName: 'FIXORA',
   tagline: "Votre assistant de réparation à domicile à base d'IA",
   subtitle:
-    "Photographiez, décrivez ou parlez de votre problème — FIXORA l'analyse et vous guide pas à pas.",
+    "Prenez une photo et décrivez le problème. FIXORA l'analyse et vous guide pas à pas.",
   settings: 'Paramètres',
   language: 'Langue',
   aiModel: 'Modèle IA',
@@ -472,10 +541,14 @@ const fr: Dict = {
   uploadTitle: 'Ajouter une photo ou une vidéo',
   uploadDesc: 'Prends une photo ou choisis dans ta galerie',
   photoSourceTitle: 'Choisir la source de la photo',
+  addPhotoTitle: 'Ajouter une photo',
+  addPhotoDesc: 'Prenez une photo ou sélectionnez-en une dans votre galerie',
+  addPhotoCamera: 'Prendre une photo',
+  addPhotoGallery: 'Choisir dans la galerie',
   addMore: 'Ajouter',
-  mediaRequired: 'Ajoute une photo ou une vidéo',
+  mediaRequired: 'Ajoute une photo',
   descriptionRequired: 'Décris le problème',
-  analyze: 'Analyser le problème',
+  analyze: 'ANALYSER LE PROBLÈME',
   analyzing: 'Analyse en cours… cela peut prendre un moment',
   resultTitle: "Résultat de l'analyse",
   riskLabel: 'Risque',
@@ -490,10 +563,7 @@ const fr: Dict = {
   costEco: 'La réparation écologique réduit les déchets.',
   yourPhoto: 'Votre photo',
   problemSummary: 'Résumé du problème',
-  markComplete: 'Marquer comme terminé',
-  completed: 'Terminé',
   back: 'Retour',
-  newAnalysis: 'Nouvelle analyse',
   selfRepair: 'Pouvez-vous effectuer cette réparation vous-même ?',
   selfRepairHint: 'Évaluez honnêtement — FIXORA vous aide selon votre réponse.',
   yesIcan: 'Oui, je peux',
@@ -506,8 +576,12 @@ const fr: Dict = {
   findPro: 'Trouver des professionnels locaux',
   findProfessional: "Trouver un professionnel près de chez moi",
   findProfessionalSoon: '(Bientôt disponible)',
+  diyFindAsk: 'Voulez-vous que je trouve un magasin près de chez vous pour acheter ces matériaux et équipements ?',
+  proFindAsk: 'Voulez-vous que je trouve une entreprise ou un artisan près de chez vous pour effectuer cette réparation ?',
+  materialsListTitle: 'Matériaux & équipement',
   errorTitle: "Quelque chose s'est mal passé",
   errorCheckNetwork: 'Veuillez vérifier votre connexion et réessayer.',
+  errorEmptyResult: "L'assistant a renvoyé une réponse vide. Veuillez réessayer.",
   errorNoApiKey:
     "Aucune clé API Gemini valide configurée. Définissez une clé dans src/auth/config.ts.",
   errorQuota:
@@ -538,21 +612,16 @@ const fr: Dict = {
   onbSkip: 'Passer',
   onbNext: 'Continuer',
   onbStart: 'Commencer',
-  onb1A: 'Devenez votre propre',
-  onb1B: 'expert en réparation.',
-  onb1Desc: 'Quelque chose est cassé ? Prenez une photo et ajoutez une courte note si vous voulez.',
-  onb2A: 'Résolvez-le vous-même.',
-  onb2B: 'Économisez immédiatement.',
-  onb2Desc: "Profitez de la satisfaction d'économiser du temps et de l'argent.",
-  onb3A: 'Réparez tout.',
-  onb3B: 'Même votre voiture.',
-  onb3Desc: "Des problèmes de moteur à la routine — de l'aide IA en quelques secondes.",
-  onb4A: 'Parfait !',
-  onb4B: 'Commençons.',
-  onb4Desc: 'FIXORA vous guide pas à pas dans votre réparation.',
+  onb1Title: 'Résolvez vos problèmes de plomberie',
+  onb1Desc:
+    'Réparez vous-même toute votre plomberie, des robinets qui fuient aux radiateurs, grâce à des guides pas à pas.',
+  onb2Title: 'Rénovez votre intérieur',
+  onb2Desc:
+    "Donnez une touche professionnelle à votre espace de vie grâce à la peinture murale, la réparation des fissures et les techniques de décoration.",
+  onb3Title: 'Redonnez vie à vos objets',
+  onb3Desc:
+    "Réparez vos vieux meubles ou vos objets en bois endommagés avec une précision experte et économisez de l'argent.",
 
-  chooseCategory: 'Choisissez la catégorie',
-  chooseSubcategory: 'Choisissez la sous-catégorie',
   catAppliances: 'Électroménager',
   catElectronics: 'Électronique',
   catPlumbing: 'Plomberie',
@@ -614,6 +683,10 @@ const fr: Dict = {
   settingsPrivacyDesc: 'Découvrir comment nous utilisons les données',
   settingsConsent: 'Gérer le consentement',
   settingsConsentDesc: 'Consulter et mettre à jour tes choix de confidentialité',
+
+  settingsBannerTitle: 'Réparation intelligente. Fini les devinettes.',
+  settingsBannerDesc: "Accédez à des corrections illimitées, des résultats plus rapides et des guides détaillés étape par étape.",
+  settingsBannerBtn: 'PASSER À LA VERSION PRO',
   shareMessage:
     'FIXORA \u2013 l\u2019assistant de réparation à domicile propulsé par l\u2019IA. Prends une photo de ton problème et reçois un guide pas à pas : {url}',
   shareFailed: 'Partage impossible',
@@ -630,9 +703,9 @@ const fr: Dict = {
   consentSaved: 'Tes préférences ont été enregistrées.',
   consentReset: 'Réinitialiser aux valeurs par défaut',
   termsBody:
-    'Bienvenue sur FIXORA.\n\n1. Utilisation\nL\u2019app fournit des conseils de réparation assistés par l\u2019IA. Les résultats servent uniquement d\u2019orientation et ne remplacent pas une vérification professionnelle.\n\n2. Responsabilité\nFIXORA n\u2019est pas responsable des dommages résultant du suivi des guides. Travaille toujours en sécurité et fais appel à un professionnel en cas de doute.\n\n3. Modifications\nNous pouvons modifier ces conditions à tout moment. Les conditions mises à jour s\u2019appliquent dès leur publication dans l\u2019app.',
+    'Bienvenue sur FIXORA.\n\n1. Acceptation des conditions\nEn téléchargeant, installant ou utilisant FIXORA (\"l\'App\"), vous acceptez ces Conditions d\'utilisation. Si vous n\'êtes pas d\'accord, veuillez cesser immédiatement l\'utilisation.\n\n2. À propos de FIXORA\nFIXORA est un assistant de réparation à domicile assisté par IA. Vous pouvez photographier un problème, le décrire et recevoir un guide de réparation pas à pas généré par l\'intelligence artificielle.\n\n3. Éligibilité\nVous devez avoir au moins 13 ans pour utiliser FIXORA. Si vous avez moins de 18 ans, vous devez avoir le consentement d\'un parent ou tuteur.\n\n4. Contenus générés par l\'IA\nFIXORA utilise l\'intelligence artificielle pour générer des suggestions et des guides de réparation. Les contenus générés par l\'IA sont fournis à titre informatif uniquement et ne remplacent pas une inspection ou des conseils professionnels. Consultez toujours un professionnel qualifié en cas de doute. FIXORA ne garantit pas l\'exactitude ou l\'exhaustivité des résultats générés par l\'IA.\n\n5. Saisies utilisateur\nVous pouvez télécharger des photos et des descriptions textuelles dans l\'App. Vous êtes seul responsable du contenu que vous soumettez. FIXORA ne surveille pas activement vos saisies mais se réserve le droit de supprimer le contenu qui viole ces conditions.\n\n6. Abonnements\nCertaines fonctionnalités nécessitent un abonnement payant. Les abonnements se renouvellent automatiquement sauf annulation au moins 24 heures avant la fin de la période en cours. La facturation, les annulations et les remboursements sont gérés par la boutique d\'applications concernée (Google Play ou Apple App Store). FIXORA ne traite pas les remboursements directement.\n\n7. Propriété intellectuelle\nTous les contenus, fonctionnalités et caractéristiques de FIXORA sont la propriété exclusive de FIXORA et sont protégés par les lois sur la propriété intellectuelle applicables.\n\n8. Confidentialité\nVotre utilisation de FIXORA est également régie par notre Politique de confidentialité, qui est intégrée aux présentes conditions par référence.\n\n9. Exclusion de garanties\nFIXORA est fourni « en l\'état » et « disponible » sans aucune garantie de quelque nature que ce soit. FIXORA ne garantit pas que l\'App sera ininterrompue ou exempte d\'erreurs.\n\n10. Limitation de responsabilité\nDans la mesure permise par la loi, FIXORA ne sera pas responsable des dommages indirects, accessoires ou consécutifs découlant de votre utilisation de l\'App.\n\n11. Modifications des conditions\nNous nous réservons le droit de modifier ces conditions à tout moment. La poursuite de l\'utilisation de FIXORA après les modifications constitue votre acceptation des nouvelles conditions.\n\n12. Contact\nPour toute question concernant ces conditions, veuillez nous contacter via la fiche de l\'App Store.',
   privacyBody:
-    'Ta vie privée compte.\n\n1. Données enregistrées\nLes photos, enregistrements audio et descriptions téléchargés pour l\u2019analyse sont traités et conservés aussi peu que possible. Ton historique d\u2019analyse reste local sur ton appareil.\n\n2. Utilisation\nTes données sont utilisées uniquement pour traiter ta demande de réparation.\n\n3. Contact\nQuestions sur la confidentialité : contacte-nous via les informations de l\u2019App Store.',
+    'Ta vie privée compte.\n\n1. Données enregistrées\nFIXORA traite les photos, descriptions et autres saisies que tu soumets dans le but de générer une analyse de réparation assistée par IA. Ces données sont transmises uniquement à des prestataires IA tiers pour générer la réponse demandée et ne sont pas stockées sur les serveurs de FIXORA. Ton historique d\'analyse reste local sur ton appareil.\n\n2. Traitement par l\'IA\nLorsque tu soumets une photo ou une description, les données sont transmises de manière sécurisée à un prestataire de services IA (par ex. Google Gemini) pour générer des suggestions de réparation. FIXORA ne vend pas tes données et ne les divulgue pas à des fins publicitaires. Le prestataire IA traite les données uniquement pour retourner l\'analyse demandée.\n\n3. Données techniques\nFIXORA peut collecter des données techniques anonymisées (type d\'appareil, version du système d\'exploitation, statistiques d\'utilisation) via des services d\'analyse tiers pour améliorer l\'app. Ces données ne permettent pas de t\'identifier personnellement.\n\n4. Utilisation de tes données\nTes données sont utilisées uniquement pour traiter ta demande de réparation et améliorer l\'expérience FIXORA.\n\n5. Conservation des données\nNous ne conservons pas tes photos ou descriptions sur nos serveurs. L\'historique d\'analyse est stocké localement sur ton appareil et peut être supprimé à tout moment.\n\n6. Services tiers\nFIXORA utilise des services tiers (prestataires IA, analyse) qui peuvent collecter des informations. Ces services ont leurs propres politiques de confidentialité. Nous t\'invitons à les consulter.\n\n7. Confidentialité des enfants\nFIXORA est destiné aux utilisateurs de 13 ans et plus. Nous ne collectons pas sciemment d\'informations personnelles auprès des enfants de moins de 13 ans.\n\n8. Sécurité\nNous utilisons des mesures commercialement raisonnables pour protéger tes données. Cependant, aucune méthode de transmission ou de stockage n\'est totalement sécurisée.\n\n9. Modifications de cette politique\nNous pouvons mettre à jour cette Politique de confidentialité de temps à autre. Nous te notifierons des changements importants via l\'app.\n\n10. Contact\nQuestions sur la confidentialité : contacte-nous via les informations de l\'App Store.',
 
   howItWorks: 'Comment ça marche',
   how1: 'Prendre une photo',
@@ -642,8 +715,6 @@ const fr: Dict = {
   demoTitle: 'Voyez votre première analyse en 10 secondes',
   demoDesc:
     'Mon robinet de cuisine fuit. De l\u2019eau s\u2019échappe du tuyau sous l\u2019évier et un bruit se fait entendre à l\u2019ouverture. Comment le réparer ?',
-  suggestCategory: 'Catégorie suggérée',
-  useSuggestion: 'Utiliser la suggestion',
   stepsDone: 'Toutes les étapes sont terminées ! 🎉',
   shareResult: 'Partager le résultat',
   rateAsk: 'Comment trouvez-vous FIXORA ?',
@@ -654,6 +725,8 @@ const fr: Dict = {
   savedTotal: 'Économies totales estimées',
   retry: 'Réessayer',
   retryDesc: 'Connexion perdue, la réponse est incomplète.',
+  cameraRetry: 'Réessayer',
+  cameraOk: 'OK',
 
   proTitle: 'FIXORA Pro',
   proSub: 'Analyses illimitées et support prioritaire',
@@ -666,6 +739,36 @@ const fr: Dict = {
   proNotify: 'Prévenez-moi au lancement de Pro',
   proThanks: 'Merci, nous vous préviendrons !',
   proActive: 'Pro actif ✓',
+  
+  // Pro Modal
+  promoTitle: 'FIXORA PRO',
+  promoUnlimitedDaily: 'Analyse illimitée quotidienne',
+  promoPhotoVideoText: 'Photo, Vidéo & Texte',
+  promoFastAnalysis: 'Analyse de réparation rapide et détaillée',
+  promoDetailedGuides: 'Guides de solutions détaillés',
+  promoPricingMonthly: '1 Mois',
+  promoPricingYearly: '1 An',
+  promoBestValue: 'MEILLEURE VALEUR',
+  promoCodeLabel: 'Entrez le code promo',
+  promoCodeButton: 'Vérifier le code',
+  promoHaveCode: 'Vous avez un code promo ?',
+  promoCodeChecking: 'Vérification en cours...',
+  promoBuyButton: '💳 Payer avec Google Play',
+  promoTerms: 'L\'abonnement se renouvelle automatiquement. Annulez à tout moment.',
+  promoEnterCode: 'Veuillez entrer un code',
+  promoInvalidCode: 'Code invalide',
+  promoLimitReached: 'Ce code a atteint sa limite d\u2019utilisation.',
+  promoNetworkError: 'Erreur de connexion au serveur. Veuillez réessayer.',
+  promoSuccess: 'Pro activé ! Analyse illimitée disponible.',
+  successTitle: 'Succès',
+  
+  // Crop Screen
+  cropTitle: "Recadrer l'image",
+  cropRotate: 'Pivoter',
+  cropAspect: '1:1',
+  cropReset: 'Réinitialiser',
+  cropContinue: 'Continuer',
+
   stepWhyLabel: 'Pourquoi',
   stepToolsLabel: 'Outils nécessaires',
   stepExpectedLabel: 'Résultat attendu',
@@ -677,13 +780,14 @@ const fr: Dict = {
   confidenceMedium: 'Moyenne',
   confidenceLow: 'Faible',
   safetyFirstLabel: "Sécurité d'abord",
+  qnaCta: "Ai-je pu vous aider ? Sinon, vous pouvez discuter avec l'IA — posez vos questions ici.",
 };
 
 const en: Dict = {
   appName: 'FIXORA',
   tagline: 'Your AI home-repair assistant',
   subtitle:
-    'Take a photo, speak, or describe the problem — FIXORA analyzes it and guides you step by step.',
+    'Take a photo and describe the problem. FIXORA analyzes it and guides you step by step.',
   settings: 'Settings',
   language: 'Language',
   aiModel: 'AI model',
@@ -699,10 +803,14 @@ const en: Dict = {
   uploadTitle: 'Add a Photo or Video',
   uploadDesc: 'Take a photo or pick from your gallery',
   photoSourceTitle: 'Select Photo Source',
+  addPhotoTitle: 'Add Photo',
+  addPhotoDesc: 'Take a photo or select from your gallery',
+  addPhotoCamera: 'Take Photo',
+  addPhotoGallery: 'Select from Gallery',
   addMore: 'Add More',
-  mediaRequired: 'Please add a photo or video',
+  mediaRequired: 'Please add a photo',
   descriptionRequired: 'Please describe the problem',
-  analyze: 'Analyze problem',
+  analyze: 'ANALYZE PROBLEM',
   analyzing: 'Analyzing… this may take a moment',
   resultTitle: 'Analysis result',
   riskLabel: 'Risk',
@@ -717,10 +825,7 @@ const en: Dict = {
   costEco: 'Eco-friendly repair reduces waste.',
   yourPhoto: 'Your Photo',
   problemSummary: 'Problem Summary',
-  markComplete: 'Mark as completed',
-  completed: 'Completed',
   back: 'Back',
-  newAnalysis: 'New analysis',
   selfRepair: 'Can you do this repair yourself?',
   selfRepairHint: 'Judge honestly — FIXORA helps you based on your answer.',
   yesIcan: 'Yes, I can',
@@ -733,8 +838,12 @@ const en: Dict = {
   findPro: 'Find local professionals',
   findProfessional: 'Find a professional near me',
   findProfessionalSoon: '(Coming soon)',
+  diyFindAsk: 'Do you want me to find a store near you where you can buy these materials and equipment?',
+  proFindAsk: 'Do you want me to find a company or craftsman near you to do this repair?',
+  materialsListTitle: 'Materials & Equipment',
   errorTitle: 'Something went wrong',
   errorCheckNetwork: 'Please check your connection and try again.',
+  errorEmptyResult: 'The assistant returned an empty response. Please try again.',
   errorNoApiKey: 'No valid Gemini API key configured. Set one in src/auth/config.ts.',
   errorQuota: 'The free provider quota is temporarily exhausted. Please try again in a moment.',
   permissionCamera: 'Camera permission required',
@@ -761,21 +870,16 @@ const en: Dict = {
   onbSkip: 'Skip',
   onbNext: 'Continue',
   onbStart: 'Start',
-  onb1A: 'Be your own',
-  onb1B: 'repair expert.',
-  onb1Desc: 'Something broken? Just take a photo and add a short note if you like.',
-  onb2A: 'Solve it yourself.',
-  onb2B: 'Save money instantly.',
-  onb2Desc: 'Enjoy the satisfaction of saving time and money.',
-  onb3A: 'Fix anything.',
-  onb3B: 'Even your car.',
-  onb3Desc: 'From engine troubles to everyday repairs — AI help in seconds.',
-  onb4A: 'Great!',
-  onb4B: 'Let\'s begin.',
-  onb4Desc: 'FIXORA guides you step by step through your repair.',
+  onb1Title: 'Fix Your Plumbing Issues',
+  onb1Desc:
+    'From dripping faucets to heating radiators, fix all of your home plumbing yourself with step-by-step guides.',
+  onb2Title: 'Renovate Your Home',
+  onb2Desc:
+    'Give your living space a professional touch with wall painting, crack repair, and decoration techniques.',
+  onb3Title: 'Bring Your Items Back to Life',
+  onb3Desc:
+    "Repair old furniture or broken wooden items with expert precision and save money.",
 
-  chooseCategory: 'Choose the category',
-  chooseSubcategory: 'Choose the subcategory',
   catAppliances: 'Home appliances',
   catElectronics: 'Electronics',
   catPlumbing: 'Plumbing',
@@ -836,7 +940,11 @@ const en: Dict = {
   settingsPrivacy: 'Privacy Policy',
   settingsPrivacyDesc: 'See how we use your data',
   settingsConsent: 'Manage Consent',
-  settingsConsentDesc: 'Review and update your privacy choices',
+  settingsConsentDesc: 'Review and update privacy preferences',
+
+  settingsBannerTitle: 'Smart Repair. No more guessing.',
+  settingsBannerDesc: 'Access unlimited fixes, faster results, and detailed step-by-step guidance.',
+  settingsBannerBtn: 'UPGRADE NOW',
   shareMessage:
     'FIXORA – the AI-powered home repair assistant. Take a photo of your problem and get a step-by-step guide: {url}',
   shareFailed: 'Sharing not available',
@@ -852,9 +960,9 @@ const en: Dict = {
   consentSaved: 'Your preferences have been saved.',
   consentReset: 'Reset to defaults',
   termsBody:
-    'Welcome to FIXORA.\n\n1. Usage\nThe app provides AI-powered repair guidance. Results are for orientation only and do not replace a professional inspection.\n\n2. Liability\nFIXORA is not liable for damage resulting from following the guides. Always work safely and consult a professional when unsure.\n\n3. Changes\nWe may update these terms at any time. Updated terms apply once published in the app.',
+    'Welcome to FIXORA.\n\n1. Acceptance of Terms\nBy downloading, installing, or using FIXORA ("the App"), you agree to be bound by these Terms of Service. If you do not agree, please discontinue use immediately.\n\n2. About FIXORA\nFIXORA is an AI-powered home repair assistant. You can photograph a problem, describe it, and receive step-by-step repair guidance generated by artificial intelligence.\n\n3. Eligibility\nYou must be at least 13 years of age to use FIXORA. If you are under 18, you must have parental or guardian consent.\n\n4. AI-Generated Content\nFIXORA uses artificial intelligence to generate repair suggestions and guides. AI-generated content is provided for informational purposes only and does not replace professional inspection or advice. You should always consult a qualified professional when unsure. FIXORA does not guarantee the accuracy or completeness of AI-generated outputs.\n\n5. User Inputs\nYou may upload photos and text descriptions to the App. You are solely responsible for the content you submit. FIXORA does not actively monitor your inputs but reserves the right to remove content that violates these Terms.\n\n6. Subscriptions\nCertain features require a paid subscription. Subscriptions auto-renew unless cancelled at least 24 hours before the end of the current period. All billing, cancellations, and refunds are handled by the applicable app store (Google Play or Apple App Store). FIXORA does not process refunds directly.\n\n7. Intellectual Property\nAll content, features, and functionality of FIXORA are the exclusive property of FIXORA and are protected by applicable intellectual property laws.\n\n8. Privacy\nYour use of FIXORA is also governed by our Privacy Policy, which is incorporated into these Terms by reference.\n\n9. Disclaimer of Warranties\nFIXORA is provided on an "as is" and "as available" basis without warranties of any kind. FIXORA does not warrant that the App will be uninterrupted or error-free.\n\n10. Limitation of Liability\nTo the fullest extent permitted by law, FIXORA shall not be liable for any indirect, incidental, or consequential damages arising from your use of the App.\n\n11. Changes to Terms\nWe reserve the right to modify these Terms at any time. Continued use of FIXORA after changes constitutes your acceptance of the new Terms.\n\n12. Contact\nIf you have questions about these Terms, please contact us via the App Store listing.',
   privacyBody:
-    'Your privacy matters.\n\n1. Data stored\nPhotos, audio recordings and descriptions uploaded for analysis are processed and kept for no longer than necessary. Your analysis history stays local on your device.\n\n2. Use\nYour data is used solely to handle your repair request.\n\n3. Contact\nPrivacy questions: contact us through the details available on the App Store.',
+    'Your privacy matters.\n\n1. Data Stored\nFIXORA processes photos, descriptions, and other inputs you submit for the purpose of generating AI-powered repair analysis. These inputs are transmitted to third-party AI providers solely to generate the requested output and are not stored on FIXORA servers. Your analysis history stays local on your device.\n\n2. AI Processing\nWhen you submit a photo or description, the data is securely transmitted to an AI service provider (e.g. Google Gemini) to generate repair suggestions. FIXORA does not sell your data or disclose it for advertising purposes. The AI provider processes the data only to return the requested analysis.\n\n3. Technical Data\nFIXORA may collect anonymized technical data (device type, OS version, app usage statistics) through third-party analytics services to improve the app. This data cannot be used to identify you personally.\n\n4. Use of Your Data\nYour data is used solely to handle your repair request and improve the FIXORA experience.\n\n5. Data Retention\nWe do not retain your photos or descriptions on our servers. Analysis history is stored locally on your device and can be deleted at any time.\n\n6. Third-Party Services\nFIXORA uses third-party services (AI providers, analytics) that may collect information. These services have their own privacy policies. We encourage you to review them.\n\n7. Children\'s Privacy\nFIXORA is intended for users aged 13 or older. We do not knowingly collect personal information from children under 13.\n\n8. Security\nWe use commercially reasonable measures to protect your data. However, no method of transmission or storage is completely secure.\n\n9. Changes to This Policy\nWe may update this Privacy Policy from time to time. We will notify you of significant changes through the app.\n\n10. Contact\nPrivacy questions: contact us through the details available on the App Store.',
 
   howItWorks: 'How it works',
   how1: 'Take a photo',
@@ -864,8 +972,6 @@ const en: Dict = {
   demoTitle: 'See your first analysis in 10 seconds',
   demoDesc:
     'My kitchen faucet is dripping. Water leaks from the pipe under the sink and it makes a noise when turned on. How can I fix it?',
-  suggestCategory: 'Suggested category',
-  useSuggestion: 'Use suggestion',
   stepsDone: 'All steps done! 🎉',
   shareResult: 'Share result',
   rateAsk: 'How do you like FIXORA?',
@@ -876,6 +982,8 @@ const en: Dict = {
   savedTotal: 'Total estimated savings',
   retry: 'Retry',
   retryDesc: 'Connection lost, the answer was cut off.',
+  cameraRetry: 'Retry',
+  cameraOk: 'OK',
 
   proTitle: 'FIXORA Pro',
   proSub: 'Unlimited analyses and priority support',
@@ -888,6 +996,36 @@ const en: Dict = {
   proNotify: 'Notify me when Pro launches',
   proThanks: 'Thanks, we\'ll be in touch!',
   proActive: 'Pro active ✓',
+  
+  // Pro Modal
+  promoTitle: 'FIXORA PRO',
+  promoUnlimitedDaily: 'Unlimited daily analysis',
+  promoPhotoVideoText: 'Photo, Video & Text',
+  promoFastAnalysis: 'Fast and detailed repair analysis',
+  promoDetailedGuides: 'Detailed solution guides',
+  promoPricingMonthly: '1 Month',
+  promoPricingYearly: '1 Year',
+  promoBestValue: 'BEST VALUE',
+  promoCodeLabel: 'Enter promo code',
+  promoCodeButton: 'Verify Code',
+  promoHaveCode: 'Have a promo code?',
+  promoCodeChecking: 'Checking...',
+  promoBuyButton: 'Pay with Google Play',
+  promoTerms: 'Subscription auto-renews. Cancel anytime.',
+  promoEnterCode: 'Please enter a code',
+  promoInvalidCode: 'Invalid code',
+  promoLimitReached: 'This code has reached its usage limit.',
+  promoNetworkError: 'Backend connection error. Please try again.',
+  promoSuccess: 'Pro activated! Unlimited analysis available.',
+  successTitle: 'Success',
+  
+  // Crop Screen
+  cropTitle: 'Crop Image',
+  cropRotate: 'Rotate',
+  cropAspect: '1:1',
+  cropReset: 'Reset',
+  cropContinue: 'Continue',
+
   stepWhyLabel: 'Why',
   stepToolsLabel: 'Tools needed',
   stepExpectedLabel: 'Expected result',
@@ -899,6 +1037,7 @@ const en: Dict = {
   confidenceMedium: 'Medium',
   confidenceLow: 'Low',
   safetyFirstLabel: 'Safety first',
+  qnaCta: 'Did I help? If not, you can chat with the AI — ask your questions here.',
 };
 
 export const translations: Record<Language, Dict> = { en, de, fr };

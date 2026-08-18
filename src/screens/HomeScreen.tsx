@@ -1,8 +1,10 @@
 import * as ImagePicker from 'expo-image-picker';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Alert,
+  Animated,
+  Easing,
   Image,
   KeyboardAvoidingView,
   Modal,
@@ -17,22 +19,23 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Directory, File, Paths } from 'expo-file-system';
 
-import { AnalyzeInput, PendingMedia, analyzeProblemStream, isAuthError } from '../api/client';
-import { AI_MODEL_OPTIONS, BACKEND_URL_MISSING } from '../auth/config';
+import { AnalyzeInput, PendingMedia, analyzeProblemStream, isAuthError, validatePromoCode } from '../api/client';
+import { BACKEND_URL_MISSING } from '../auth/config';
 import { Language, SUPPORTED_LANGUAGES } from '../i18n/translations';
-import { CATEGORIES, findCategory, findSubcategory, suggestCategory } from '../data/categories';
 import { DEMO_IMAGE_BASE64 } from '../data/demo';
-import { canAnalyze as canUseFree } from '../storage/pro';
+import { canAnalyze as canUseFree, isPro, setPro } from '../storage/pro';
 import { COLORS, RADIUS, SPACING } from '../theme';
 import Logo from '../components/Logo';
 import ThinkingLoader from '../components/ThinkingLoader';
 import RatingCard from '../components/RatingCard';
 import RichText from '../components/RichText';
+import UpgradeModal from '../components/UpgradeModal';
+import PromoAlert from '../components/PromoAlert';
+import CropScreen from './CropScreen';
 
 interface Props {
   language: Language;
   modelId: string;
-  onModelChange: (id: string) => void;
   onLanguageChange: (lang: Language) => void;
   onResult: (input: AnalyzeInput, analysis: string) => void;
   onOpenSettings: () => void;
@@ -58,7 +61,6 @@ const API_KEY_MISSING = BACKEND_URL_MISSING;
 export default function HomeScreen({
   language,
   modelId,
-  onModelChange,
   onLanguageChange,
   onResult,
   onOpenSettings,
@@ -69,20 +71,62 @@ export default function HomeScreen({
   const { t } = useTranslation();
   const [media, setMedia] = useState<PendingMedia[]>([]);
   const [description, setDescription] = useState('');
-  const [categoryId, setCategoryId] = useState<string | null>(null);
-  const [subcategoryId, setSubcategoryId] = useState<string | null>(null);
-  const [openPicker, setOpenPicker] = useState<'lang' | 'model' | null>(null);
+  const [openPicker, setOpenPicker] = useState<'lang' | null>(null);
   const [loading, setLoading] = useState(false);
   const [streamText, setStreamText] = useState<string | null>(null);
   const [sourceSheet, setSourceSheet] = useState(false);
+  const [upgradeVisible, setUpgradeVisible] = useState(false);
+  const [proStatus, setProStatus] = useState(false);
+  const [promoAlert, setPromoAlert] = useState<{
+    type: 'success' | 'error';
+    title: string;
+    message: string;
+  } | null>(null);
+  const [pendingCropUri, setPendingCropUri] = useState<string | null>(null);
   const scrollRef = useRef<ScrollView>(null);
   const streamTextRef = useRef<string | null>(null);
+  const rotateAnim = useRef(new Animated.Value(0)).current;
+  const bounceAnim = useRef(new Animated.Value(0)).current;
 
-  const suggestion = useMemo(() => {
-    const d = description.trim();
-    if (d.length < 6 || categoryId) return null;
-    return suggestCategory(d);
-  }, [description, categoryId]);
+  // Pro status kontrolü
+  useEffect(() => {
+    const checkPro = async () => {
+      const pro = await isPro();
+      setProStatus(pro);
+    };
+    checkPro();
+  }, []);
+
+  // Animated PRO button wobble effect
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(bounceAnim, {
+          toValue: 1,
+          duration: 600,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+        Animated.timing(bounceAnim, {
+          toValue: 0,
+          duration: 600,
+          easing: Easing.in(Easing.cubic),
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+  }, [bounceAnim]);
+
+  useEffect(() => {
+    Animated.loop(
+      Animated.timing(rotateAnim, {
+        toValue: 1,
+        duration: 4000,
+        easing: Easing.linear,
+        useNativeDriver: true,
+      })
+    ).start();
+  }, [rotateAnim]);
 
   useEffect(() => {
     if (streamText !== null) {
@@ -105,14 +149,18 @@ export default function HomeScreen({
     });
     if (!result.canceled) {
       const a = result.assets[0];
-      setMedia((prev) => [
-        ...prev,
-        {
-          uri: a.uri,
-          name: a.fileName ?? `camera-${Date.now()}.${a.mimeType?.split('/')[1] ?? 'jpg'}`,
-          type: a.mimeType ?? guessMime(a.uri),
-        },
-      ]);
+      if (a.mimeType?.startsWith('video')) {
+        setMedia((prev) => [
+          ...prev,
+          {
+            uri: a.uri,
+            name: a.fileName ?? `camera-${Date.now()}.${a.mimeType?.split('/')[1] ?? 'mp4'}`,
+            type: a.mimeType ?? 'video/mp4',
+          },
+        ]);
+      } else {
+        setPendingCropUri(a.uri);
+      }
     }
   };
 
@@ -129,20 +177,46 @@ export default function HomeScreen({
       selectionLimit: 10,
     });
     if (!result.canceled) {
-      const added = result.assets.map((a) => ({
+      const images = result.assets.filter((a) => a.mimeType?.startsWith('image'));
+      const videos = result.assets.filter((a) => a.mimeType?.startsWith('video'));
+
+      const videoItems = videos.map((a) => ({
         uri: a.uri,
-        name: a.fileName ?? `picked-${Date.now()}-${a.uri.split('/').pop()}.${a.mimeType?.split('/')[1] ?? 'jpg'}`,
-        type: a.mimeType ?? guessMime(a.uri),
+        name: a.fileName ?? `picked-${Date.now()}-${a.uri.split('/').pop()}.${a.mimeType?.split('/')[1] ?? 'mp4'}`,
+        type: a.mimeType ?? 'video/mp4',
       }));
-      setMedia((prev) => [...prev, ...added]);
+      if (videoItems.length > 0) {
+        setMedia((prev) => [...prev, ...videoItems]);
+      }
+
+      if (images.length === 1) {
+        setPendingCropUri(images[0].uri);
+      } else if (images.length > 1) {
+        const added = images.map((a) => ({
+          uri: a.uri,
+          name: a.fileName ?? `picked-${Date.now()}-${a.uri.split('/').pop()}.${a.mimeType?.split('/')[1] ?? 'jpg'}`,
+          type: a.mimeType ?? guessMime(a.uri),
+        }));
+        setMedia((prev) => [...prev, ...added]);
+      }
     }
+  };
+
+  const handleCropped = (croppedUri: string) => {
+    setMedia((prev) => [
+      ...prev,
+      {
+        uri: croppedUri,
+        name: `cropped-${Date.now()}.jpg`,
+        type: 'image/jpeg',
+      },
+    ]);
+    setPendingCropUri(null);
   };
 
   const runAnalysis = async (override?: {
     description?: string;
     files?: PendingMedia[];
-    category?: string;
-    subcategory?: string;
   }) => {
     if (loading) return;
     const files = override?.files ?? media;
@@ -153,32 +227,23 @@ export default function HomeScreen({
     }
     const proCheck = await canUseFree();
     if (!proCheck.allowed) {
-      onOpenPro();
+      setUpgradeVisible(true);
       return;
     }
     setLoading(true);
     setStreamText('');
     try {
-      // Kategori + alt kategori AI'ya bağlam olarak verilir.
-      const catId = override?.category ?? categoryId ?? undefined;
-      const subId = override?.subcategory ?? subcategoryId ?? undefined;
-      const category = findCategory(catId);
-      const subcategory = findSubcategory(catId, subId);
-      const context: string[] = [];
-      if (category) context.push(t(category.key));
-      if (subcategory) context.push(t(subcategory.key));
-      const contextPrefix = context.length ? `[${context.join(' → ')}] ` : '';
+      // Kategori, kullanıcıya sorulmaz; AI kullanıcının verdiği veriden kendisi karar verir.
       const input: AnalyzeInput = {
         language,
-        description: `${contextPrefix}${desc}`.trim(),
+        description: desc,
         modelId,
         files,
-        category: category?.id,
-        subcategory: subcategory?.id,
       };
       const fullText = await analyzeProblemStream(input, (text) => setStreamText(text));
       streamTextRef.current = null;
       setStreamText(null);
+      if (!fullText || !fullText.trim()) throw new Error(t('errorEmptyResult'));
       onResult(input, fullText);
     } catch (e) {
       const partial = streamTextRef.current;
@@ -212,7 +277,7 @@ export default function HomeScreen({
     }
   };
 
-  /** Örnek demoyu başlatır: hazır görsel + açıklama + önerilen kategori ile. */
+  /** Örnek demoyu başlatır: hazır görsel + açıklama ile. */
   const runDemo = async () => {
     if (loading) return;
     try {
@@ -226,20 +291,35 @@ export default function HomeScreen({
       }
       const demoFiles: PendingMedia[] = [{ uri: file.uri, name: 'demo.jpg', type: 'image/jpeg' }];
       const demoDesc = t('demoDesc');
-      const sug = suggestCategory(demoDesc) ?? { category: 'plumbing', subcategory: 'faucet' };
       setMedia(demoFiles);
       setDescription(demoDesc);
-      setCategoryId(sug.category);
-      setSubcategoryId(sug.subcategory ?? null);
-      runAnalysis({ files: demoFiles, description: demoDesc, category: sug.category, subcategory: sug.subcategory });
+      runAnalysis({ files: demoFiles, description: demoDesc });
     } catch {
       Alert.alert(t('errorTitle'), t('errorCheckNetwork'));
     }
   };
 
-  const activeModel = AI_MODEL_OPTIONS.find((m) => m.id === modelId);
-
   const canAnalyze = media.length > 0 && description.trim().length > 0;
+
+  /** Promo kodu doğrula ve Pro aktif et */
+  const handlePromoCodeSubmit = async (code: string): Promise<boolean> => {
+    const result = await validatePromoCode(code);
+    if (result.valid) {
+      // Pro 30 gün geçerli
+      await setPro(true, 30);
+      setProStatus(true);
+      setPromoAlert({ type: 'success', title: t('successTitle'), message: t('promoSuccess') });
+      return true;
+    }
+    if (result.kind === 'network') {
+      setPromoAlert({ type: 'error', title: t('errorTitle'), message: t('promoNetworkError') });
+    } else if (result.kind === 'limit') {
+      setPromoAlert({ type: 'error', title: t('errorTitle'), message: t('promoLimitReached') });
+    } else {
+      setPromoAlert({ type: 'error', title: t('errorTitle'), message: t('promoInvalidCode') });
+    }
+    return false;
+  };
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -258,8 +338,13 @@ export default function HomeScreen({
       >
         {/* Marka */}
         <View style={styles.hero}>
-          <View style={styles.logoGlow}>
-            <Logo size={110} />
+          <View style={styles.logoContainer}>
+            <Animated.View style={[styles.logoGlow, {
+              transform: [{ rotate: rotateAnim.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] }) }],
+            }]} />
+            <View style={styles.logoStatic}>
+              <Logo size={90} />
+            </View>
           </View>
           <Text style={styles.brand}>{t('appName')}</Text>
           <Text style={styles.tagline}>{t('tagline')}</Text>
@@ -348,78 +433,6 @@ export default function HomeScreen({
           placeholderTextColor={COLORS.textMuted}
         />
 
-        {/* Kategori önerisi (AI çağrısı yok, yerel kelime eşleştirme) */}
-        {suggestion && (
-          <Pressable
-            style={styles.suggestChip}
-            onPress={() => {
-              setCategoryId(suggestion.category);
-              setSubcategoryId(suggestion.subcategory ?? null);
-            }}
-          >
-            <Text style={styles.suggestText}>
-              {(() => {
-                const cat = findCategory(suggestion.category);
-                const sub = findSubcategory(suggestion.category, suggestion.subcategory);
-                return `${t('suggestCategory')}: ${cat ? `${cat.icon} ${t(cat.key)}` : ''}${
-                  sub ? ` → ${sub.icon} ${t(sub.key)}` : ''
-                } · ${t('useSuggestion')}`;
-              })()}
-            </Text>
-          </Pressable>
-        )}
-
-        {/* Kategori seçimi (opsiyonel) */}
-        <Text style={styles.sectionLabel}>{t('chooseCategory')}</Text>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={styles.catRow}
-          contentContainerStyle={styles.catRowContent}
-        >
-          {CATEGORIES.map((cat) => {
-            const active = categoryId === cat.id;
-            return (
-              <Pressable
-                key={cat.id}
-                style={[styles.catCard, active && styles.catCardActive]}
-                onPress={() => {
-                  setCategoryId(active ? null : cat.id);
-                  setSubcategoryId(null);
-                }}
-              >
-                <Text style={styles.catIcon}>{cat.icon}</Text>
-                <Text style={[styles.catLabel, active && styles.catLabelActive]} numberOfLines={1}>
-                  {t(cat.key)}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
-
-        {categoryId && (
-          <>
-            <Text style={styles.sectionLabel}>{t('chooseSubcategory')}</Text>
-            <View style={styles.subGrid}>
-              {(findCategory(categoryId)?.subcategories ?? []).map((sub) => {
-                const active = subcategoryId === sub.id;
-                return (
-                  <Pressable
-                    key={sub.id}
-                    style={[styles.subChip, active && styles.subChipActive]}
-                    onPress={() => setSubcategoryId(active ? null : sub.id)}
-                  >
-                    <Text style={styles.subIcon}>{sub.icon}</Text>
-                    <Text style={[styles.subLabel, active && styles.subLabelActive]} numberOfLines={2}>
-                      {t(sub.key)}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-          </>
-        )}
-
         {/* Analiz */}
         {loading ? (
           <ThinkingLoader text={t('analyzing')} />
@@ -455,8 +468,31 @@ export default function HomeScreen({
       </ScrollView>
       </KeyboardAvoidingView>
 
-      {/* Üst bar: dil bayrağı + AI model + ayarlar */}
+      {/* Üst bar: PRO button + dil bayrağı + ayarlar */}
       <View style={styles.topBar}>
+        <Animated.View
+          style={{
+            transform: [
+              {
+                scale: bounceAnim.interpolate({
+                  inputRange: [0, 0.5, 1],
+                  outputRange: [0.9, 1.15, 1],
+                }),
+              },
+            ],
+          }}
+        >
+          <Pressable
+            style={[styles.proBtn, proStatus && styles.proBtnActive]}
+            onPress={() => setUpgradeVisible(true)}
+            hitSlop={12}
+          >
+            <Text style={[styles.proBtnText, proStatus && styles.proBtnTextActive]}>
+              {proStatus ? '👑 PRO' : '⭐ PRO'}
+            </Text>
+          </Pressable>
+        </Animated.View>
+
         <Pressable
           style={[styles.iconBtn, openPicker === 'lang' && styles.iconBtnActive]}
           onPress={() => setOpenPicker(openPicker === 'lang' ? null : 'lang')}
@@ -464,13 +500,7 @@ export default function HomeScreen({
         >
           <Text style={styles.iconBtnText}>{LANG_FLAGS[language]}</Text>
         </Pressable>
-        <Pressable
-          style={[styles.iconBtn, openPicker === 'model' && styles.iconBtnActive]}
-          onPress={() => setOpenPicker(openPicker === 'model' ? null : 'model')}
-          hitSlop={8}
-        >
-          <Text style={styles.iconBtnText}>🤖</Text>
-        </Pressable>
+
         <Pressable style={styles.iconBtn} onPress={onOpenSettings} hitSlop={8}>
           <Text style={styles.iconBtnText}>⚙️</Text>
         </Pressable>
@@ -499,64 +529,87 @@ export default function HomeScreen({
         </View>
       )}
 
-      {openPicker === 'model' && (
-        <View style={[styles.dropPanel, styles.dropPanelTop]}>
-          {AI_MODEL_OPTIONS.map((m) => {
-            const active = modelId === m.id;
-            return (
-              <Pressable
-                key={m.id}
-                style={[styles.dropItem, active && styles.dropItemActive]}
-                onPress={() => {
-                  onModelChange(m.id);
-                  setOpenPicker(null);
-                }}
-              >
-                <Text style={[styles.dropItemText, active && styles.dropItemTextActive]}>
-                  {m.label}
-                </Text>
-                {active && <Text style={styles.dropCheck}>✓</Text>}
-              </Pressable>
-            );
-          })}
-        </View>
-      )}
-
       {/* Medya kaynağı seçimi */}
       <Modal
         transparent
         visible={sourceSheet}
-        animationType="fade"
+        animationType="slide"
         onRequestClose={() => setSourceSheet(false)}
       >
         <Pressable style={styles.sheetBackdrop} onPress={() => setSourceSheet(false)}>
           <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
-            <Text style={styles.sheetTitle}>{t('photoSourceTitle')}</Text>
-            <Pressable
-              style={styles.sheetItem}
-              onPress={(e) => {
-                e.stopPropagation();
-                setSourceSheet(false);
-                pickFromCamera();
-              }}
-            >
-              <Text style={styles.sheetItemIcon}>📷</Text>
-              <Text style={styles.sheetItemText}>{t('takePhotoVideo')}</Text>
-            </Pressable>
-            <Pressable
-              style={styles.sheetItem}
-              onPress={(e) => {
-                e.stopPropagation();
-                setSourceSheet(false);
-                pickFromLibrary();
-              }}
-            >
-              <Text style={styles.sheetItemIcon}>🖼️</Text>
-              <Text style={styles.sheetItemText}>{t('pickMedia')}</Text>
-            </Pressable>
+            <View style={styles.sheetHandle} />
+            <View style={styles.sheetHeader}>
+              <View style={styles.sheetIconCircle}>
+                <Text style={styles.sheetIconUpload}>⬆</Text>
+              </View>
+              <Pressable style={styles.sheetCloseBtn} onPress={() => setSourceSheet(false)} hitSlop={8}>
+                <Text style={styles.sheetCloseText}>✕</Text>
+              </Pressable>
+            </View>
+            <Text style={styles.sheetTitle}>{t('addPhotoTitle')}</Text>
+            <Text style={styles.sheetDesc}>{t('addPhotoDesc')}</Text>
+            <View style={styles.sheetCards}>
+              <Pressable
+                style={styles.sheetCard}
+                onPress={(e) => {
+                  e.stopPropagation();
+                  setSourceSheet(false);
+                  pickFromCamera();
+                }}
+              >
+                <View style={styles.sheetCardIconWrap}>
+                  <Text style={styles.sheetCardIcon}>📷</Text>
+                </View>
+                <Text style={styles.sheetCardLabel}>{t('addPhotoCamera')}</Text>
+              </Pressable>
+              <Pressable
+                style={styles.sheetCard}
+                onPress={(e) => {
+                  e.stopPropagation();
+                  setSourceSheet(false);
+                  pickFromLibrary();
+                }}
+              >
+                <View style={styles.sheetCardIconWrap}>
+                  <Text style={styles.sheetCardIcon}>🖼️</Text>
+                </View>
+                <Text style={styles.sheetCardLabel}>{t('addPhotoGallery')}</Text>
+              </Pressable>
+            </View>
           </Pressable>
         </Pressable>
       </Modal>
+
+      {/* Upgrade Modal */}
+      <UpgradeModal
+        visible={upgradeVisible}
+        onClose={() => setUpgradeVisible(false)}
+        onPromoCodeSubmit={handlePromoCodeSubmit}
+        onUpgradeClick={onOpenPro}
+        language={language}
+      />
+
+      {/* Promo Sonucu Alert */}
+      <PromoAlert
+        visible={!!promoAlert}
+        type={promoAlert?.type ?? 'success'}
+        title={promoAlert?.title ?? ''}
+        message={promoAlert?.message ?? ''}
+        onClose={() => setPromoAlert(null)}
+      />
+
+      {/* Crop Screen Overlay */}
+      {pendingCropUri && (
+        <View style={{ ...StyleSheet.absoluteFill, backgroundColor: COLORS.background, zIndex: 50 }}>
+          <CropScreen
+            uri={pendingCropUri}
+            onBack={() => setPendingCropUri(null)}
+            onCropped={handleCropped}
+          />
+        </View>
+      )}
+
     </SafeAreaView>
   );
 }
@@ -600,6 +653,34 @@ const styles = StyleSheet.create({
   },
   iconBtnActive: { borderColor: COLORS.primary, backgroundColor: COLORS.cardAlt },
   iconBtnText: { fontSize: 18 },
+  proBtn: {
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    borderRadius: 12,
+    backgroundColor: COLORS.primary,
+    borderWidth: 2,
+    borderColor: COLORS.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: COLORS.primary,
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 6,
+  },
+  proBtnActive: {
+    backgroundColor: COLORS.primary + '33',
+    borderColor: COLORS.primary,
+  },
+  proBtnText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: 'white',
+    letterSpacing: 0.5,
+  },
+  proBtnTextActive: {
+    color: COLORS.primary,
+  },
   dropPanelTop: {
     position: 'absolute',
     top: 54,
@@ -613,103 +694,110 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
   },
   container: { padding: SPACING, paddingBottom: 40 },
-  hero: { alignItems: 'center', marginTop: 6, marginBottom: 4 },
+  hero: { alignItems: 'center', marginTop: 2, marginBottom: 0 },
+  logoContainer: {
+    width: 110,
+    height: 110,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 4,
+  },
+  logoStatic: {
+    transform: [{ scale: 1.1 }],
+    zIndex: 2,
+  },
   logoGlow: {
-    borderRadius: 999,
-    padding: 8,
-    backgroundColor: 'rgba(99,102,241,0.14)',
-    marginBottom: 10,
+    position: 'absolute',
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: 'transparent',
+    borderWidth: 4,
+    borderColor: COLORS.primary,
+    borderStyle: 'dashed',
+    opacity: 0.4,
+    zIndex: 1,
   },
   brand: {
-    fontSize: 34,
+    fontSize: 30,
     fontWeight: '900',
     color: COLORS.text,
     letterSpacing: 2,
   },
-  tagline: { fontSize: 16, fontWeight: '800', color: COLORS.primary, marginTop: 2, textAlign: 'center' },
-  subtitle: { fontSize: 13, color: COLORS.textMuted, marginTop: 8, lineHeight: 20, textAlign: 'center' },
+  tagline: { fontSize: 15, fontWeight: '800', color: COLORS.primary, marginTop: 1, textAlign: 'center' },
+  subtitle: { fontSize: 12, color: COLORS.textMuted, marginTop: 4, lineHeight: 18, textAlign: 'center' },
   configWarning: {
-    marginTop: 12,
+    marginTop: 6,
     color: COLORS.danger,
     fontSize: 13,
     fontWeight: '600',
   },
   uploadCard: {
-    marginTop: 18,
+    marginTop: 10,
     backgroundColor: COLORS.card,
     borderWidth: 1,
     borderColor: COLORS.border,
     borderStyle: 'dashed',
     borderRadius: RADIUS,
-    paddingVertical: 30,
-    paddingHorizontal: 16,
+    paddingVertical: 16,
+    paddingHorizontal: 14,
     alignItems: 'center',
   },
   uploadIconCircle: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: 'rgba(99,102,241,0.18)',
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: COLORS.primary + '2E',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 12,
+    marginBottom: 6,
   },
-  uploadIcon: { fontSize: 30 },
-  uploadTitle: { color: COLORS.text, fontSize: 15, fontWeight: '800' },
-  uploadDesc: { color: COLORS.textMuted, fontSize: 12, marginTop: 4, textAlign: 'center', lineHeight: 17 },
+  uploadIcon: { fontSize: 24 },
+  uploadTitle: { color: COLORS.text, fontSize: 14, fontWeight: '800' },
+  uploadDesc: { color: COLORS.textMuted, fontSize: 11, marginTop: 2, textAlign: 'center', lineHeight: 15 },
   howCard: {
-    marginTop: 18,
+    marginTop: 10,
     backgroundColor: COLORS.card,
     borderWidth: 1,
     borderColor: COLORS.border,
     borderRadius: RADIUS,
-    padding: 16,
+    padding: 10,
   },
-  howTitle: { color: COLORS.text, fontSize: 14, fontWeight: '800', marginBottom: 12 },
-  howRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 },
+  howTitle: { color: COLORS.text, fontSize: 13, fontWeight: '800', marginBottom: 6 },
+  howRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 },
   howCircle: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
     backgroundColor: COLORS.primary,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  howNum: { color: '#fff', fontSize: 12, fontWeight: '900' },
-  howIcon: { fontSize: 16 },
-  howLabel: { color: COLORS.text, fontSize: 13, fontWeight: '600', flex: 1 },
+  howNum: { color: '#fff', fontSize: 10, fontWeight: '900' },
+  howIcon: { fontSize: 14 },
+  howLabel: { color: COLORS.text, fontSize: 12, fontWeight: '600', flex: 1 },
   demoCard: {
-    marginTop: 12,
+    marginTop: 6,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    backgroundColor: 'rgba(99,102,241,0.16)',
+    gap: 10,
+    backgroundColor: COLORS.primary + '29',
     borderWidth: 1,
     borderColor: COLORS.primary,
     borderRadius: RADIUS,
-    padding: 16,
+    padding: 10,
   },
-  demoEmoji: { fontSize: 28 },
+  demoEmoji: { fontSize: 22 },
   demoTextWrap: { flex: 1 },
   demoTitle: { color: COLORS.text, fontSize: 14, fontWeight: '800', lineHeight: 20 },
   demoCta: { color: COLORS.primaryLight, fontSize: 13, fontWeight: '800', marginTop: 4 },
-  suggestChip: {
-    marginTop: 10,
-    backgroundColor: 'rgba(52,208,122,0.12)',
-    borderWidth: 1,
-    borderColor: COLORS.success,
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-  },
-  suggestText: { color: COLORS.success, fontSize: 12, fontWeight: '700', lineHeight: 17 },
   sectionLabel: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '800',
     color: COLORS.textMuted,
     letterSpacing: 1,
-    marginTop: 22,
-    marginBottom: 10,
+    marginTop: 10,
+    marginBottom: 6,
   },
   // Açılır seçiciler
   pickerRow: { flexDirection: 'row', gap: 10, marginTop: 16 },
@@ -749,50 +837,10 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border,
   },
-  dropItemActive: { backgroundColor: 'rgba(99,102,241,0.16)' },
+  dropItemActive: { backgroundColor: COLORS.primary + '29' },
   dropItemText: { color: COLORS.text, fontSize: 14, fontWeight: '600' },
   dropItemTextActive: { color: COLORS.primary, fontWeight: '800' },
   dropCheck: { color: COLORS.primary, fontSize: 15, fontWeight: '900' },
-  // Kategori seçimi
-  catRow: { flexGrow: 0 },
-  catRowContent: { gap: 10, paddingRight: 4 },
-  catCard: {
-    backgroundColor: COLORS.card,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: RADIUS,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    alignItems: 'center',
-    width: 104,
-  },
-  catCardActive: {
-    borderColor: COLORS.primary,
-    backgroundColor: 'rgba(99,102,241,0.18)',
-  },
-  catIcon: { fontSize: 22, marginBottom: 6 },
-  catLabel: { color: COLORS.text, fontSize: 12, fontWeight: '700', textAlign: 'center' },
-  catLabelActive: { color: COLORS.primaryLight, fontWeight: '800' },
-  subGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  subChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: COLORS.card,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    maxWidth: '48%',
-  },
-  subChipActive: {
-    borderColor: COLORS.primary,
-    backgroundColor: 'rgba(99,102,241,0.18)',
-  },
-  subIcon: { fontSize: 15 },
-  subLabel: { color: COLORS.text, fontSize: 12, fontWeight: '600' },
-  subLabelActive: { color: COLORS.primaryLight, fontWeight: '800' },
   // Aksiyon kartları
   actionGrid: { flexDirection: 'row', gap: 10 },
   actionCard: {
@@ -853,7 +901,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.border,
   },
-  tileImage: { width: '100%', height: '100%' },
+  tileImage: { width: '100%', height: '100%', resizeMode: 'contain' as const },
   tileVideo: { width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center' },
   tileVideoIcon: {
     position: 'absolute',
@@ -889,16 +937,16 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.border,
     borderRadius: RADIUS,
-    padding: 12,
-    minHeight: 90,
+    padding: 10,
+    minHeight: 70,
     color: COLORS.text,
     textAlignVertical: 'top',
   },
   analyzeBtn: {
-    marginTop: 24,
+    marginTop: 14,
     backgroundColor: COLORS.accent,
     borderRadius: RADIUS,
-    padding: 18,
+    padding: 15,
     alignItems: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 6 },
@@ -909,7 +957,7 @@ const styles = StyleSheet.create({
   analyzeBtnDisabled: { opacity: 0.6 },
   analyzeBtnText: { color: '#fff', fontWeight: '900', fontSize: 17, letterSpacing: 0.3 },
   requiredHint: {
-    marginTop: 10,
+    marginTop: 6,
     color: COLORS.warning,
     fontSize: 12,
     textAlign: 'center',
@@ -931,32 +979,95 @@ const styles = StyleSheet.create({
   },
   sheet: {
     backgroundColor: COLORS.card,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    padding: 20,
-    paddingBottom: 34,
-    borderWidth: 1,
-    borderColor: COLORS.border,
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
+    paddingHorizontal: 24,
+    paddingTop: 12,
+    paddingBottom: 36,
+  },
+  sheetHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: COLORS.border,
+    alignSelf: 'center',
+    marginBottom: 18,
+  },
+  sheetHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 14,
+  },
+  sheetIconCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: COLORS.primary + '18',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sheetIconUpload: {
+    fontSize: 20,
+    color: COLORS.primary,
+    fontWeight: '800',
+  },
+  sheetCloseBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: COLORS.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sheetCloseText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: COLORS.textMuted,
   },
   sheetTitle: {
     color: COLORS.text,
-    fontSize: 16,
-    fontWeight: '800',
-    marginBottom: 14,
-    textAlign: 'center',
+    fontSize: 20,
+    fontWeight: '900',
+    marginBottom: 6,
   },
-  sheetItem: {
+  sheetDesc: {
+    color: COLORS.textMuted,
+    fontSize: 14,
+    lineHeight: 20,
+    marginBottom: 22,
+  },
+  sheetCards: {
     flexDirection: 'row',
-    alignItems: 'center',
     gap: 12,
+  },
+  sheetCard: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: COLORS.cardAlt,
-    borderRadius: RADIUS,
-    paddingHorizontal: 14,
-    paddingVertical: 16,
-    marginBottom: 10,
     borderWidth: 1,
     borderColor: COLORS.border,
+    borderRadius: 18,
+    paddingVertical: 24,
+    paddingHorizontal: 12,
+    gap: 10,
   },
-  sheetItemIcon: { fontSize: 20 },
-  sheetItemText: { color: COLORS.text, fontSize: 15, fontWeight: '700' },
+  sheetCardIconWrap: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: COLORS.primary + '12',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sheetCardIcon: {
+    fontSize: 24,
+  },
+  sheetCardLabel: {
+    color: COLORS.text,
+    fontSize: 13,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
 });

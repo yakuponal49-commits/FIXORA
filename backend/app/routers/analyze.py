@@ -12,6 +12,7 @@ from pydantic import BaseModel
 
 from ..config import settings
 from ..services import gemini
+from ..services.analytics import track_analysis, track_error
 
 router = APIRouter(prefix="/api", tags=["analyze"])
 
@@ -34,14 +35,47 @@ class ChatRequest(BaseModel):
     messages: list[ChatMessage]
 
 
+def _language_directive(language: str) -> str:
+    """Kullanıcı mesajına en başa eklenen açık dil kuralı. Görselde/metinde başka dil
+    olsa bile modelin yanıtı her zaman uygulama dilinde döner."""
+    name = gemini.language_name(language)
+    return (
+        f"The user's language is {name} (language code: {language}). "
+        f"Your ENTIRE reply must be written in {name}. "
+        f"Never reply in another language, even if the image or text above is in another language."
+    )
+
+
+def _build_messages(req: ChatRequest) -> list[dict]:
+    messages = [{"role": "system", "content": gemini.get_system_instruction(req.language)}]
+    first_user = True
+    for m in req.messages:
+        content = m.content
+        if first_user and m.role == "user":
+            if isinstance(content, list):
+                content = [{"type": "text", "text": _language_directive(req.language)}, *content]
+            else:
+                content = f"{_language_directive(req.language)}\n\n{content}"
+            first_user = False
+        messages.append({"role": m.role, "content": content})
+    return messages
+
+
 @router.post("/chat/stream")
 async def chat_stream(req: ChatRequest):
     if not req.messages or not any(m.content for m in req.messages):
         raise HTTPException(status_code=422, detail="EMPTY")
     preferred = (req.modelId or "").strip() or gemini.DEFAULT_MODEL
-    messages = [{"role": "system", "content": gemini.get_system_instruction(req.language)}]
+    messages = _build_messages(req)
+
+    # Baslangihta gorsel var mi kontrol et
+    has_images = False
     for m in req.messages:
-        messages.append({"role": m.role, "content": m.content})
+        if isinstance(m.content, list):
+            for part in m.content:
+                if isinstance(part, dict) and part.get("type") == "image_url":
+                    has_images = True
+                    break
 
     async def event_source():
         full = ""
@@ -50,16 +84,28 @@ async def chat_stream(req: ChatRequest):
                 full = text
                 yield f"data: {json_dumps({'text': text})}\n\n"
         except HTTPException as e:
+            track_error("/api/chat/stream", "HTTPException", str(e.detail), e.status_code)
             yield f"data: {json_dumps({'error': e.status_code, 'message': e.detail})}\n\n"
             return
         if not full:
+            track_error("/api/chat/stream", "EmptyResponse", "Gemini bos yanit dondu", 502)
             raise HTTPException(status_code=502, detail="EMPTY")
+        # Basarili analiz - tracking
+        track_analysis(
+            language=req.language,
+            model_id=preferred,
+            has_images=has_images,
+            category=_extract_category(full),
+            description=_extract_description(req.messages),
+        )
         # GECICI DEBUG (pasif): tam yaniti repr() ile dosyaya yaz (invisible char'lar gorsun)
-        # try:
-        #     with open(r"C:\Users\barda\AppData\Local\Temp\opencode\fixora_analysis_debug.txt", "a", encoding="utf-8") as _df:
-        #         _df.write(repr(full) + "\n=====\n")
-        # except Exception:
-        #     pass
+        try:
+            import os
+            debug_path = os.getenv("DEBUG_LOG_PATH", "/tmp/fixora_analysis_debug.txt")
+            with open(debug_path, "a", encoding="utf-8") as _df:
+                _df.write(repr(full) + "\n=====\n")
+        except Exception:
+            pass
         yield "data: [DONE]\n\n"
 
     return StreamingResponse(
@@ -78,9 +124,7 @@ async def chat(req: ChatRequest):
     if not req.messages or not any(m.content for m in req.messages):
         raise HTTPException(status_code=422, detail="EMPTY")
     preferred = (req.modelId or "").strip() or gemini.DEFAULT_MODEL
-    messages = [{"role": "system", "content": gemini.get_system_instruction(req.language)}]
-    for m in req.messages:
-        messages.append({"role": m.role, "content": m.content})
+    messages = _build_messages(req)
     analysis = await gemini.chat_json(messages, preferred)
     return {"ok": True, "analysis": analysis}
 
@@ -186,3 +230,34 @@ def json_dumps(obj: Any) -> str:
     import json
 
     return json.dumps(obj, ensure_ascii=False)
+
+
+def _extract_category(text: str) -> str:
+    """Yanittan kategori cikarmaya calis."""
+    text_lower = text.lower()
+    categories = {
+        "plumbing": ["plumbing", "pipe", "water", "faucet", "leak", "rohr", "wasser", "wasserhahn", "rohrbruch"],
+        "electrical": ["electrical", "wire", "outlet", "switch", "light", "elektro", "draht", "steckdose", "schalter"],
+        "painting": ["paint", "wall", "color", "fence", "anstrich", "farbe", "wand", "zaun"],
+        "woodworking": ["wood", "door", "furniture", "shelf", "holz", "tür", "möbel", "regal"],
+        "roofing": ["roof", "tile", "gutter", "dach", "rinne"],
+        "hvac": ["heating", "air", "ventilation", "heizung", "lüftung", "klima"],
+    }
+    for cat, keywords in categories.items():
+        for kw in keywords:
+            if kw in text_lower:
+                return cat
+    return "other"
+
+
+def _extract_description(messages: list[ChatMessage]) -> str:
+    """Ilk user mesajindan aciklama cikar."""
+    for m in messages:
+        if m.role == "user":
+            if isinstance(m.content, str):
+                return m.content[:200]
+            elif isinstance(m.content, list):
+                for part in m.content:
+                    if isinstance(part, dict) and part.get("type") == "text":
+                        return part.get("text", "")[:200]
+    return ""

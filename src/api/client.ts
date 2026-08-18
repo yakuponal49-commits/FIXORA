@@ -37,6 +37,55 @@ export interface AnalyzeResponse {
 const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif'];
 const VIDEO_TYPES = ['video/mp4', 'video/quicktime', 'video/webm', 'video/x-msvideo', 'video/3gpp'];
 
+// Backend'e ulasilabilecek adresler, oncelik sirasina gore:
+//   1) 127.0.0.1    -> adb reverse (USB baglantisinda telefondaki 8000, PC'deki
+//                      backend'e yonlendirilir; WiFi/hucresel ayarindan bagimsiz calisir)
+//   2) BACKEND_URL  -> LAN (WiFi) uzerinden PC
+// Ilk sağlık kontrolünde hangisi yanit verirse o kullanilir ve oturum boyunca hatirlanir.
+const BACKEND_CANDIDATES = ['http://127.0.0.1:8000', BACKEND_URL];
+
+let resolvedBaseUrl: string | null = null;
+
+function withTimeout(ms: number): { signal: AbortSignal; cancel: () => void } {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), ms);
+  return { signal: ctrl.signal, cancel: () => clearTimeout(t) };
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/** Kullanilabilir backend adresini secer ve oturum icin cache'ler. */
+async function resolveBackendUrl(): Promise<string> {
+  if (resolvedBaseUrl) return resolvedBaseUrl;
+  for (const base of BACKEND_CANDIDATES) {
+    const ms = base.startsWith('http://127.0.0.1') ? 3000 : 35000;
+    // Canli sunucu (Render ucretsiz plani) uyku/bol-yayin sirasinda 503/502
+    // donebilir; hata vermeden once birkaç kez bekleyip tekrar deneriz.
+    const attempts = base.startsWith('http://127.0.0.1') ? 1 : 3;
+    for (let i = 0; i < attempts; i++) {
+      try {
+        const { signal, cancel } = withTimeout(ms);
+        const res = await fetch(`${base}/health`, { signal });
+        cancel();
+        if (res.ok) {
+          resolvedBaseUrl = base;
+          return base;
+        }
+      } catch {
+        // sonraki deneme / aday
+      }
+      if (i < attempts - 1) await sleep(5000 * (i + 1));
+    }
+  }
+  throw new Error('');
+}
+
+function invalidateBackendUrl() {
+  resolvedBaseUrl = null;
+}
+
 // Gemini'in gorsel sinirlarini asmamak icin gorseller 1024px'e kucultulur
 // ve JPEG olarak base64'e cevrilir. HEIC/HEIF bu sayede de desteklenir.
 async function imageToBase64(uri: string): Promise<string> {
@@ -63,6 +112,18 @@ interface ChatMessage {
  * OpenAI-uyumlu content array: metin + (varsa) goruntuler. Video/ses desteklenmez;
  * video icin ilk kare cikarilir, ses dosyasi metin olarak eklenir.
  */
+function languageName(code: string): string {
+  if (code === 'de') return 'German';
+  if (code === 'fr') return 'French';
+  return 'English';
+}
+
+function userPrefix(code: string): string {
+  if (code === 'de') return 'Benutzer:';
+  if (code === 'fr') return 'Utilisateur :';
+  return 'User:';
+}
+
 async function buildContentParts(
   input: AnalyzeInput
 ): Promise<Array<{ type: string; text?: string; image_url?: { url: string } }>> {
@@ -111,11 +172,21 @@ async function buildContentParts(
   }
 
   if (input.description?.trim()) {
-    parts.push({ type: 'text', text: `Benutzer: ${input.description.trim()}` });
+    parts.push({ type: 'text', text: `${userPrefix(input.language)} ${input.description.trim()}` });
   }
 
   if (parts.length === 0) {
     throw new Error('EMPTY');
+  }
+
+  // Dil kuralini kullanici mesajina acikca ekle: gorselde baska bir dil olsa bile
+  // yanit her zaman uygulama dilinde doner.
+  if (input.language) {
+    const lang = languageName(input.language);
+    parts.unshift({
+      type: 'text',
+      text: `The user's language is ${lang} (${input.language}). Your ENTIRE reply must be written in ${lang}. Never reply in another language, even if the image or text above is in another language.`,
+    });
   }
 
   return parts;
@@ -148,11 +219,18 @@ function parseBackendError(status: number, raw: string): ModelError {
 
 /** Backend /api/chat: tek parca JSON cevap. */
 async function backendJson(body: Record<string, unknown>): Promise<string> {
-  const res = await fetch(`${BACKEND_URL}/api/chat`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
+  let res: Response;
+  try {
+    const base = await resolveBackendUrl();
+    res = await fetch(`${base}/api/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+  } catch (e) {
+    invalidateBackendUrl();
+    throw e;
+  }
 
   if (!res.ok) {
     const raw = await res.text();
@@ -197,12 +275,12 @@ class Utf8IncrementalDecoder {
         len = 4;
         cp = b & 0x07;
       } else {
-        out += '\ufffd';
+        // Hatalı başlangıç baytı: atla
         i += 1;
         continue;
       }
       if (i + len > all.length) {
-        // Karakter yarim kaldi: sonraki chunk'ta tamamlansin diye sakla.
+        // Karakter yarım kaldı: sonraki chunk'ta tamamlansin diye sakla.
         this.pending = all.slice(i);
         break;
       }
@@ -216,7 +294,7 @@ class Utf8IncrementalDecoder {
         cp = (cp << 6) | (cb & 0x3f);
       }
       if (!valid) {
-        out += '\ufffd';
+        // Geçersiz sekans: ilk baytı atla, geri kalanını tekrar dene
         i += 1;
         continue;
       }
@@ -246,12 +324,19 @@ async function backendStream(
   signal: AbortSignal | undefined
 ): Promise<string> {
   console.log('[FIXORA] /api/chat/stream bytes:', JSON.stringify(body).length);
-  const res = await fetch(`${BACKEND_URL}/api/chat/stream`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-    signal,
-  });
+  let res: Response;
+  try {
+    const base = await resolveBackendUrl();
+    res = await fetch(`${base}/api/chat/stream`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      signal,
+    });
+  } catch (e) {
+    invalidateBackendUrl();
+    throw e;
+  }
 
   if (!res.ok) {
     const raw = await res.text();
@@ -401,4 +486,59 @@ export class ModelError extends Error {
 
 export function isAuthError(e: unknown): boolean {
   return e instanceof ModelError && (e.status === 401 || e.kind === 'NO_API_KEY');
+}
+
+export type PromoResultKind = 'success' | 'invalid' | 'limit' | 'network';
+
+export interface PromoResult {
+  valid: boolean;
+  kind: PromoResultKind;
+}
+
+/** Promo kodunu backend'te doğrula. Mesajlar çeviri dosyasından alınır (kind bazlı). */
+export async function validatePromoCode(code: string): Promise<PromoResult> {
+  try {
+    const base = await resolveBackendUrl();
+    const res = await fetch(`${base}/api/promo/validate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code: code.trim() }),
+    });
+
+    const json = await res.json().catch(() => null);
+    const valid = json?.valid === true;
+    if (valid) return { valid: true, kind: 'success' };
+    return { valid: false, kind: json?.reason === 'limit' ? 'limit' : 'invalid' };
+  } catch (e) {
+    invalidateBackendUrl();
+    return { valid: false, kind: 'network' };
+  }
+}
+
+const DEFAULT_MATERIAL_ICON = '🧰';
+
+/**
+ * Malzeme/ekipman adlarinin her biri icin temsil ikonunu backend'in kutuphanesinden
+ * (/api/materials/icons) getirir. Ikonlar AI tarafindan URETILMEZ; backend'deki
+ * cok dilli anahtar kelime eslemesiyle secilir. Gelen dizi istenen sirayla aynidir.
+ * Backend ulasilamazsa bos dizi doner (cagiran taraf varsayilan ikonu kullanir).
+ */
+export async function resolveMaterialIcons(items: string[], language: string): Promise<string[]> {
+  if (!items.length) return [];
+  try {
+    const base = await resolveBackendUrl();
+    const res = await fetch(`${base}/api/materials/icons`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ items, language }),
+    });
+    if (!res.ok) return [];
+    const json = await res.json().catch(() => null);
+    const arr = json?.items;
+    if (!Array.isArray(arr)) return [];
+    return items.map((item, i) => arr[i]?.icon || DEFAULT_MATERIAL_ICON);
+  } catch (e) {
+    invalidateBackendUrl();
+    return [];
+  }
 }

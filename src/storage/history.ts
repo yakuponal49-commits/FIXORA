@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AnalyzeInput, PendingMedia } from '../api/client';
 import { estimateSavings } from '../utils/savings';
+import { stripInvisible } from '../utils/invisible';
 
 export interface HistoryEntry {
   id: string;
@@ -20,8 +21,28 @@ const MAX = 30;
 export async function loadHistory(): Promise<HistoryEntry[]> {
   try {
     const raw = await AsyncStorage.getItem(KEY);
+    // GECICI DEBUG: ham history verisini backend'e gonder (adb reverse ile)
+    try {
+      fetch('http://127.0.0.1:8000/api/debug/raw', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: encodeURIComponent(JSON.stringify(raw ?? '')),
+      }).catch(() => {});
+    } catch {}
     const list = raw ? (JSON.parse(raw) as HistoryEntry[]) : [];
-    return Array.isArray(list) ? list : [];
+    const arr = Array.isArray(list) ? list : [];
+    // Eski analizlerdeki görünmez karakterler (zwsp, bidi kontrolü vb.) kart
+    // içinde boş satır boşlukları oluşturuyordu; yüklemede temizlenir.
+    let changed = false;
+    const cleaned = arr.map((e) => {
+      if (typeof e.analysis === 'string' && /[\u200B-\u200F\u202A-\u202E\u2060-\u206F\uFEFF]/.test(e.analysis)) {
+        changed = true;
+        return { ...e, analysis: stripInvisible(e.analysis) };
+      }
+      return e;
+    });
+    if (changed) await saveHistory(cleaned);
+    return cleaned;
   } catch {
     return [];
   }

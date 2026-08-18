@@ -17,7 +17,9 @@ import OnboardingScreen from './src/screens/OnboardingScreen';
 import HistoryScreen from './src/screens/HistoryScreen';
 import LanguageSelectScreen from './src/screens/LanguageSelectScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
-import ProUpsellScreen from './src/components/ProUpsellScreen';
+import UpgradeModal from './src/components/UpgradeModal';
+import { validatePromoCode } from './src/api/client';
+import { setPro } from './src/storage/pro';
 import { recordAnalysis } from './src/storage/pro';
 import {
   HistoryEntry,
@@ -59,7 +61,7 @@ export default function App() {
   const [language, setLanguage] = useState<Language>(defaultLanguage);
   const [analysis, setAnalysis] = useState<string | null>(null);
   const [original, setOriginal] = useState<AnalyzeInput | null>(null);
-  const [modelId, setModelId] = useState(DEFAULT_MODEL_ID);
+  const [modelId] = useState(DEFAULT_MODEL_ID);
   const [langLoaded, setLangLoaded] = useState(false);
   const [langChosen, setLangChosen] = useState(false);
   const [onboardingDone, setOnboardingDone] = useState(false);
@@ -145,6 +147,15 @@ export default function App() {
     setAnalysis(parseQuestionBlock(entry.analysis).clean);
   };
 
+  const handlePromoCodeSubmit = async (code: string): Promise<boolean> => {
+    const result = await validatePromoCode(code);
+    if (result.valid) {
+      await setPro(true, 30);
+      return true;
+    }
+    return false;
+  };
+
   if (!langLoaded) {
     // Kayıtlı dil okunana kadar boş ekran.
     return (
@@ -157,7 +168,7 @@ export default function App() {
   if (!langChosen) {
     return (
       <SafeAreaProvider>
-        <StatusBar style="light" />
+        <StatusBar style="dark" />
         <LanguageSelectScreen selected={language} onSelect={chooseLanguage} />
       </SafeAreaProvider>
     );
@@ -166,7 +177,7 @@ export default function App() {
   if (!onboardingDone) {
     return (
       <SafeAreaProvider>
-        <StatusBar style="light" />
+        <StatusBar style="dark" />
         <OnboardingScreen onDone={finishOnboarding} />
       </SafeAreaProvider>
     );
@@ -174,13 +185,12 @@ export default function App() {
 
   return (
     <SafeAreaProvider>
-      <StatusBar style="light" />
+      <StatusBar style="dark" />
       <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
         {tab === 'home' ? (
           <HomeScreen
             language={language}
             modelId={modelId}
-            onModelChange={setModelId}
             onLanguageChange={changeLanguage}
             onResult={onResult}
             onOpenSettings={() => setSettingsOpen(true)}
@@ -217,7 +227,13 @@ export default function App() {
       )}
       {proOpen && (
         <View style={styles.overlay}>
-          <ProUpsellScreen onClose={() => setProOpen(false)} />
+          <UpgradeModal
+            visible={proOpen}
+            onClose={() => setProOpen(false)}
+            onPromoCodeSubmit={handlePromoCodeSubmit}
+            onUpgradeClick={() => setProOpen(false)}
+            language={language}
+          />
         </View>
       )}
     </SafeAreaProvider>

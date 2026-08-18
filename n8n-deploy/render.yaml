@@ -1,0 +1,26 @@
+services:
+  - type: web
+    name: fixora-n8n
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: N8N_BASIC_AUTH_ACTIVE
+        value: "true"
+      - key: N8N_BASIC_AUTH_USER
+        sync: false
+      - key: N8N_BASIC_AUTH_PASSWORD
+        sync: false
+      - key: N8N_ENCRYPTION_KEY
+        generateValue: true
+      - key: WEBHOOK_URL
+        value: "https://fixora-n8n.onrender.com"
+      - key: N8N_RUNNERS_ENABLED
+        value: "true"
+      - key: GENERIC_TIMEZONE
+        value: "Europe/Istanbul"
+    healthCheckPath: /healthz
+    disk:
+      name: n8n-data
+      mountPath: /home/node/.n8n
+      sizeGB: 1

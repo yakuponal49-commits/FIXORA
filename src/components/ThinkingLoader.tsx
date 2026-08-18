@@ -79,11 +79,11 @@ export default function ThinkingLoader({ text }: { text: string }) {
     };
   }, [ringA, ringB, bubble, dots]);
 
-  const scaleA = ringA.interpolate({ inputRange: [0, 1], outputRange: [0.7, 2.1] });
-  const opacityA = ringA.interpolate({ inputRange: [0, 1], outputRange: [0.45, 0] });
-  const scaleB = ringB.interpolate({ inputRange: [0, 1], outputRange: [0.7, 2.1] });
-  const opacityB = ringB.interpolate({ inputRange: [0, 1], outputRange: [0.45, 0] });
-  const bubbleScale = bubble.interpolate({ inputRange: [0, 1], outputRange: [1, 1.06] });
+  const scaleA = ringA.interpolate({ inputRange: [0, 1], outputRange: [0.8, 2.5] });
+  const opacityA = ringA.interpolate({ inputRange: [0, 1], outputRange: [0.6, 0] });
+  const scaleB = ringB.interpolate({ inputRange: [0, 1], outputRange: [0.8, 2.5] });
+  const opacityB = ringB.interpolate({ inputRange: [0, 1], outputRange: [0.6, 0] });
+  const bubbleScale = bubble.interpolate({ inputRange: [0, 1], outputRange: [1, 1.15] });
 
   return (
     <View style={styles.card}>
@@ -91,16 +91,16 @@ export default function ThinkingLoader({ text }: { text: string }) {
         <Animated.View
           style={[
             styles.ring,
-            { transform: [{ scale: scaleA }], opacity: opacityA },
+            { transform: [{ scale: scaleA }], opacity: opacityA, borderColor: COLORS.neonBlue },
           ]}
         />
         <Animated.View
           style={[
             styles.ring,
-            { transform: [{ scale: scaleB }], opacity: opacityB },
+            { transform: [{ scale: scaleB }], opacity: opacityB, borderColor: COLORS.neonPurple },
           ]}
         />
-        <Animated.View style={[styles.bubble, { transform: [{ scale: bubbleScale }] }]}>
+        <Animated.View style={[styles.bubble, { transform: [{ scale: bubbleScale }], backgroundColor: 'rgba(56, 189, 248, 0.15)' }]}>
           <Text style={styles.robot}>🤖</Text>
         </Animated.View>
       </View>

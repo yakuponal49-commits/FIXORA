@@ -1,0 +1,116 @@
+{
+  "name": "FIXORA - Daily Report",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 9 * * *"
+            }
+          ]
+        }
+      },
+      "id": "trigger",
+      "name": "Her Gün 09:00",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "http://host.docker.internal:8000/api/analytics/daily",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "fetch-daily-stats",
+      "name": "Günlük İstatistikler",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [470, 300],
+      "disabled": true,
+      "notesInFlow": true,
+      "notes": "Bu endpoint'i backend'e eklemeniz gerekir"
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\nconst date = new Date().toLocaleDateString('tr-TR');\n\nconst report = `📊 FIXORA Günlük Rapor - ${date}\n\n📈 Kullanım:\n• Toplam Analiz: ${data.totalAnalyses || 0}\n• Aktif Kullanıcı: ${data.activeUsers || 0}\n• Yeni Kullanıcı: ${data.newUsers || 0}\n\n🔧 Performans:\n• Ortalama Yanıt: ${data.avgResponseTime || 0}ms\n• Başarı Oranı: ${data.successRate || 100}%\n• Hata Sayısı: ${data.errorCount || 0}\n\n📱 En Popüler Kategoriler:\n${(data.topCategories || []).map((c, i) => `${i+1}. ${c.name}: ${c.count}`).join('\\n')}\n\n💡 Öneriler:\n${(data.suggestions || []).map(s => `• ${s}`).join('\\n')}`;\n\nreturn [{ json: { report, date } }];"
+      },
+      "id": "generate-report",
+      "name": "Rapor Oluştur",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [690, 300]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "sendMessage",
+        "chatId": "={{ $env.TELEGRAM_CHAT_ID }}",
+        "text": "={{ $json.report }}"
+      },
+      "id": "send-telegram",
+      "name": "Telegram'a Gönder",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [910, 300],
+      "disabled": true,
+      "credentials": {
+        "telegramApi": {
+          "id": "YOUR_TELEGRAM_CREDENTIAL_ID",
+          "name": "Telegram"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Her Gün 09:00": {
+      "main": [
+        [
+          {
+            "node": "Günlük İstatistikler",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Günlük İstatistikler": {
+      "main": [
+        [
+          {
+            "node": "Rapor Oluştur",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rapor Oluştur": {
+      "main": [
+        [
+          {
+            "node": "Telegram'a Gönder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "name": "fixora"
+    },
+    {
+      "name": "reporting"
+    }
+  ]
+}
