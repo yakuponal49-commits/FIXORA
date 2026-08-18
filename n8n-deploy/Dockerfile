@@ -1,15 +1,9 @@
 FROM n8nio/n8n:latest
 
-USER root
-
-RUN npm install -g n8n
-
-USER node
-
 ENV N8N_PORT=5678
 ENV N8N_PROTOCOL=https
-ENV N8N_RUNNERS_ENABLED=true
 ENV WEBHOOK_URL=https://fixora-n8n.onrender.com
+ENV GENERIC_TIMEZONE=Europe/Istanbul
 
 EXPOSE 5678
 
