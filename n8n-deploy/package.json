@@ -1,0 +1,11 @@
+{
+  "name": "fixora-n8n",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "start": "n8n start"
+  },
+  "dependencies": {
+    "n8n": "1.30.1"
+  }
+}
