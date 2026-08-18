@@ -1,9 +1,9 @@
-FROM docker.n8n.io/n8nio/n8n
+FROM n8nio/n8n:1.30.1
 
 ENV N8N_PORT=5678
 ENV N8N_PROTOCOL=https
 ENV WEBHOOK_URL=https://fixora-n8n.onrender.com
-ENV GENERIC_TIMEZONE=Europe/Istanbul
+ENV GENERIC_TIMEzone=Europe/Istanbul
 
 EXPOSE 5678
 
