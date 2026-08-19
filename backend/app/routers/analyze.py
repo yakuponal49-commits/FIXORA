@@ -1,24 +1,35 @@
 import base64
-import shutil
-import subprocess
-import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Literal
 
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Header, UploadFile
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from ..config import settings
 from ..services import gemini
 from ..services.analytics import track_analysis, track_error
+from ..services.usage_log import get_usage_stats
 
 router = APIRouter(prefix="/api", tags=["analyze"])
 
 IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"}
-VIDEO_TYPES = {"video/mp4", "video/quicktime", "video/webm", "video/x-msvideo", "video/3gpp"}
-AUDIO_TYPES = {"audio/mpeg", "audio/mp4", "audio/wav", "audio/webm", "audio/ogg"}
+
+
+# --- Usage istatistikleri endpoint'i (admin korumali) ---
+
+
+@router.get("/usage")
+async def usage_stats(
+    since: str | None = None,
+    authorization: str | None = Header(None),
+):
+    """Usage istatistiklerini dön. PROMO_ADMIN_KEY ile korumalı."""
+    admin_key = settings.promo_admin_key
+    if admin_key and authorization != f"Bearer {admin_key}":
+        raise HTTPException(status_code=401, detail="UNAUTHORIZED")
+    return get_usage_stats(since)
 
 
 # --- JSON sohbet endpoint'leri (mobil uygulama) ---
@@ -98,14 +109,6 @@ async def chat_stream(req: ChatRequest):
             category=_extract_category(full),
             description=_extract_description(req.messages),
         )
-        # GECICI DEBUG (pasif): tam yaniti repr() ile dosyaya yaz (invisible char'lar gorsun)
-        try:
-            import os
-            debug_path = os.getenv("DEBUG_LOG_PATH", "/tmp/fixora_analysis_debug.txt")
-            with open(debug_path, "a", encoding="utf-8") as _df:
-                _df.write(repr(full) + "\n=====\n")
-        except Exception:
-            pass
         yield "data: [DONE]\n\n"
 
     return StreamingResponse(
@@ -147,7 +150,6 @@ async def analyze(
 
     for f in file:
         mime = f.content_type or ""
-        filename = f.filename or "upload"
         data = await f.read()
         if mime in IMAGE_TYPES:
             kind = "image"
@@ -157,37 +159,13 @@ async def analyze(
                     "image_url": {"url": f"data:image/jpeg;base64,{base64.b64encode(data).decode('ascii')}"},
                 }
             )
-        elif mime in VIDEO_TYPES:
-            kind = "video"
-            frame = _extract_video_frame(filename, data)
-            if frame:
-                parts.append(
-                    {
-                        "type": "image_url",
-                        "image_url": {"url": f"data:image/jpeg;base64,{frame}"},
-                    }
-                )
-                parts.append({"type": "text", "text": f"[Video angehängt: {filename} – erstes Standbild]"})
-            else:
-                parts.append(
-                    {
-                        "type": "text",
-                        "text": f"[Video angehängt: {filename} – konnte nicht analysiert werden. Beschreibe kurz, was im Video zu sehen ist.]",
-                    }
-                )
-        elif mime in AUDIO_TYPES:
-            kind = "audio"
-            parts.append(
-                {
-                    "type": "text",
-                    "text": f"[Datei angehängt: {filename} ({mime}) – kann nicht direkt analysiert werden. Nutze die textuelle Beschreibung.]",
-                }
-            )
         else:
             raise HTTPException(status_code=415, detail=f"Unsupported file type: {mime or 'unknown'}")
 
     if description.strip():
-        parts.append({"type": "text", "text": f"Benutzer: {description.strip()}"})
+        _user_prefixes = {"de": "Benutzer:", "fr": "Utilisateur :", "en": "User:"}
+        prefix = _user_prefixes.get(language, "User:")
+        parts.append({"type": "text", "text": f"{prefix} {description.strip()}"})
 
     preferred = (modelId or "").strip() or gemini.DEFAULT_MODEL
     messages = [{"role": "user", "content": parts}]
@@ -200,30 +178,6 @@ async def analyze(
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "analysis": analysis,
     }
-
-
-def _extract_video_frame(filename: str, data: bytes) -> str | None:
-    """ffmpeg varsa videodan ilk kareyi JPEG base64 olarak dondurur; yoksa None."""
-    ffmpeg = shutil.which("ffmpeg")
-    if not ffmpeg:
-        return None
-    suffix = Path(filename or "video").suffix or ".mp4"
-    try:
-        with tempfile.TemporaryDirectory() as tmp:
-            src = Path(tmp) / f"in{suffix}"
-            src.write_bytes(data)
-            frame = Path(tmp) / "frame.jpg"
-            subprocess.run(
-                [ffmpeg, "-y", "-loglevel", "error", "-i", str(src), "-frames:v", "1", str(frame)],
-                timeout=60,
-                check=True,
-                capture_output=True,
-            )
-            if frame.exists():
-                return base64.b64encode(frame.read_bytes()).decode("ascii")
-    except Exception:
-        return None
-    return None
 
 
 def json_dumps(obj: Any) -> str:

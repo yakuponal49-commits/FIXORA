@@ -14,6 +14,7 @@ import httpx
 from fastapi import HTTPException
 
 from ..config import settings
+from .usage_log import log_usage
 
 BASE_URL = settings.gemini_base_url
 KEYS = settings.effective_api_keys
@@ -97,12 +98,12 @@ STEP_FIELDS = {
 
 SYSTEM_INSTRUCTION = (
     "You are NOT a general chat bot. You are a specialized expert home-repair, maintenance and troubleshooting assistant for Switzerland.\n"
-    "Your role is strictly limited: the user will describe a device or item fault / a renovation problem in their own words and may attach a photo or video. You must evaluate exactly that submitted data (their description + their images) and inform the user according to the FIXORA answer-page design and its section headings defined below (Safety First, Step-by-Step Solution, When to Call a Professional, Post-Repair Check, Preventive Tips, Accuracy, Cost Breakdown and the per-step sub-fields).\n"
+    "Your role is strictly limited: the user will describe a device or item fault / a renovation problem in their own words and may attach a photo. You must evaluate exactly that submitted data (their description + their images) and inform the user according to the FIXORA answer-page design and its section headings defined below (Safety First, Step-by-Step Solution, When to Call a Professional, Post-Repair Check, Preventive Tips, Accuracy, Cost Breakdown and the per-step sub-fields).\n"
     "Never behave like a general-purpose chatbot: do NOT answer off-topic questions, do NOT chat about the weather, do NOT give generic life advice, do NOT discuss anything unrelated to the submitted repair/renovation problem. If the user asks something outside your repair-assistant role, politely redirect them to describe the fault they want to fix.\n"
     "You must NOT answer with generic, textbook information. Your only job is to diagnose THIS specific problem the user described with their own words and/or photos in THEIR exact case.\n"
     "Always:\n"
-    "1. Analyze ONLY the concrete symptoms, images, video frame(s) and context the user provided. Do not invent unrelated facts and do not give broad general lessons.\n"
-    "2. ALWAYS start with a DETECTION step: analyze the submitted data (description + photos/video frame) and state what fault you detected, then ask the user to confirm. The app shows ONLY the text inside the QUESTION_BLOCK, so the diagnosis MUST be written INSIDE the block as part of the question line. End your reply with ONLY this confirmation block, where <diagnosis> is your 1-2 sentence current detection in the user's language:\n"
+    "1. Analyze ONLY the concrete symptoms, images and context the user provided. Do not invent unrelated facts and do not give broad general lessons.\n"
+    "2. ALWAYS start with a DETECTION step: analyze the submitted data (description + photos) and state what fault you detected, then ask the user to confirm. The app shows ONLY the text inside the QUESTION_BLOCK, so the diagnosis MUST be written INSIDE the block as part of the question line. End your reply with ONLY this confirmation block, where <diagnosis> is your 1-2 sentence current detection in the user's language:\n"
     "QUESTION_BLOCK_START\n"
     "<diagnosis> Stimmt diese Diagnose?\n"
     "OPTIONS_START\n"
@@ -234,26 +235,31 @@ def _headers(key: str) -> dict[str, str]:
 async def chat_json(messages: list[dict], preferred_model: str) -> str:
     """Tek parca (streaming'siz) cevap dondurur."""
 
-    async def attempt(key: str, model: str) -> str:
+    async def attempt(key: str, model: str, key_index: int) -> str:
         body = {"model": model, "messages": messages, "max_tokens": 8192}
+        t0 = time.monotonic()
         async with httpx.AsyncClient(timeout=120) as client:
             resp = await client.post(f"{BASE_URL}/chat/completions", json=body, headers=_headers(key))
+        elapsed_ms = int((time.monotonic() - t0) * 1000)
         if resp.status_code != 200:
+            log_usage(key_index=key_index, model=model, success=False,
+                      response_time_ms=elapsed_ms, error=f"HTTP {resp.status_code}", endpoint="chat_json")
             if _is_quota(resp):
                 raise QuotaError()
             if _is_model_not_supported(resp):
                 raise HTTPException(status_code=404, detail="MODEL_NOT_SUPPORTED")
             raise _provider_error(resp)
         data = resp.json()
+        usage = data.get("usage", {})
+        log_usage(
+            key_index=key_index, model=model, success=True,
+            prompt_tokens=usage.get("prompt_tokens", 0),
+            completion_tokens=usage.get("completion_tokens", 0),
+            total_tokens=usage.get("total_tokens", 0),
+            response_time_ms=elapsed_ms, endpoint="chat_json",
+        )
         content = (data.get("choices") or [{}])[0].get("message", {}).get("content")
         if isinstance(content, str) and content.strip():
-            try:
-                import os
-                debug_path = os.getenv("DEBUG_LOG_PATH", "/tmp/trace_chat.txt")
-                with open(debug_path, "a", encoding="utf-8") as f:
-                    f.write(f"CHAT_FULL_REPR={content!r}\n---END---\n")
-            except Exception:
-                pass
             return content
         if isinstance(content, list) and content:
             return "".join(p.get("text", "") for p in content if isinstance(p, dict))
@@ -265,14 +271,18 @@ async def chat_json(messages: list[dict], preferred_model: str) -> str:
 async def chat_stream(messages: list[dict], preferred_model: str):
     """SSE stream olarak biriken metni verir: data: {"text": "<biriken>"}"""
 
-    async def attempt(key: str, model: str):
+    async def attempt(key: str, model: str, key_index: int):
         body = {"model": model, "messages": messages, "max_tokens": 8192, "stream": True}
+        t0 = time.monotonic()
         async with httpx.AsyncClient(timeout=300) as client:
             async with client.stream(
                 "POST", f"{BASE_URL}/chat/completions", json=body, headers=_headers(key)
             ) as resp:
                 if resp.status_code != 200:
                     raw = await resp.aread()
+                    elapsed_ms = int((time.monotonic() - t0) * 1000)
+                    log_usage(key_index=key_index, model=model, success=False,
+                              response_time_ms=elapsed_ms, error=f"HTTP {resp.status_code}", endpoint="chat_stream")
                     if _is_quota(resp):
                         raise QuotaError()
                     if _is_model_not_supported(resp):
@@ -281,21 +291,25 @@ async def chat_stream(messages: list[dict], preferred_model: str):
                 full_text = ""
                 buffer = ""
                 decoder = codecs.getincrementaldecoder("utf-8")(errors="replace")
+                last_usage: dict = {}
                 async for chunk in resp.aiter_bytes():
                     buffer += decoder.decode(chunk, final=False)
                     while "\n" in buffer:
                         line, buffer = buffer.split("\n", 1)
-                        delta = _parse_sse_line(line)
-                        if delta:
-                            full_text += delta
+                        parsed = _parse_sse_line_with_usage(line)
+                        if parsed.get("usage"):
+                            last_usage = parsed["usage"]
+                        if parsed.get("delta"):
+                            full_text += parsed["delta"]
                             yield full_text
-                try:
-                    import os
-                    debug_path = os.getenv("DEBUG_LOG_PATH", "/tmp/trace_stream.txt")
-                    with open(debug_path, "a", encoding="utf-8") as f:
-                        f.write(f"STREAM_FULL_REPR={full_text!r}\n---END---\n")
-                except Exception:
-                    pass
+                elapsed_ms = int((time.monotonic() - t0) * 1000)
+                log_usage(
+                    key_index=key_index, model=model, success=True,
+                    prompt_tokens=last_usage.get("prompt_tokens", 0),
+                    completion_tokens=last_usage.get("completion_tokens", 0),
+                    total_tokens=last_usage.get("total_tokens", 0),
+                    response_time_ms=elapsed_ms, endpoint="chat_stream",
+                )
 
     keys = list(range(len(KEYS)))
     random.shuffle(keys)
@@ -307,7 +321,7 @@ async def chat_stream(messages: list[dict], preferred_model: str):
                 last_err = last_err or HTTPException(status_code=429, detail="QUOTA")
                 continue
             try:
-                async for full in attempt(KEYS[i], model):
+                async for full in attempt(KEYS[i], model, i):
                     yield full
                 return
             except QuotaError:
@@ -329,7 +343,7 @@ async def _with_key_fallback(preferred_model: str, request):
                 last_err = last_err or HTTPException(status_code=429, detail="QUOTA")
                 continue
             try:
-                result = await request(KEYS[i], model)
+                result = await request(KEYS[i], model, i)
                 cooldown_until.pop((i, model), None)
                 return result
             except QuotaError:
@@ -362,3 +376,34 @@ def _parse_sse_line(line: str) -> str:
     if isinstance(delta, list):
         return "".join(d.get("text", "") for d in delta if isinstance(d, dict))
     return ""
+
+
+def _parse_sse_line_with_usage(line: str) -> dict:
+    """SSE satırından hem delta text hem de usage bilgisini döndür."""
+    t = line.strip()
+    if not t.startswith("data:"):
+        return {}
+    data = t[len("data:"):].strip()
+    if not data or data == "[DONE]":
+        return {}
+    try:
+        payload = json.loads(data)
+    except json.JSONDecodeError:
+        return {}
+    if payload.get("error"):
+        msg = str(payload["error"]).lower()
+        if "quota" in msg or "resource_exhausted" in msg:
+            raise QuotaError()
+        raise HTTPException(status_code=502, detail=msg[:400])
+    result: dict = {}
+    # Usage (son chunk'ta gelir)
+    usage = payload.get("usage")
+    if usage and isinstance(usage, dict):
+        result["usage"] = usage
+    # Delta text
+    delta = (payload.get("choices") or [{}])[0].get("delta", {}).get("content")
+    if isinstance(delta, str):
+        result["delta"] = delta
+    elif isinstance(delta, list):
+        result["delta"] = "".join(d.get("text", "") for d in delta if isinstance(d, dict))
+    return result

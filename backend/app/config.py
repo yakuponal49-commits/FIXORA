@@ -28,10 +28,7 @@ class Settings(BaseSettings):
 
     default_language: str = "de"
     input_retention_minutes: int = 15
-
-    # Eski alanlar (kullanilmiyorsa bos birakilir).
-    supabase_url: str = ""
-    supabase_anon_key: str = ""
+    promo_admin_key: str = ""
 
     @property
     def effective_api_keys(self) -> list[str]:
